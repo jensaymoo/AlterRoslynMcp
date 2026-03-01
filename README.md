@@ -130,7 +130,7 @@ Parameters:
 
 
 
-### `trace_flow`
+### `trace_call_flow`
 
 Traces call flow from/to a symbol. Use to understand code flow: upstream shows callers (who uses this), downstream shows callees (what this calls). Requires `symbolId` OR `path+line+column`. Direction: `upstream`, `downstream`, or `both` (default). Depth: how many hops to traverse (default `2`, max unbounded). Returns call graph edges with locations.
 
