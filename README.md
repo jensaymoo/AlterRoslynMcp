@@ -10,6 +10,17 @@ MUST be called first: loads a `.sln` file and initializes the Roslyn workspace. 
 Parameters:
 - `solutionHintPath` (optional): Optional solution hint path (absolute or workspace-relative).
 
+### `list_dependencies`
+
+Lists project dependencies. Returns all projects that a project depends on (`outgoing`), projects that depend on it (`incoming`), or both. Use at session start to understand project relationships. Without a specific project selector, returns dependencies across the solution.
+
+Parameters:
+- `projectPath` (optional): Project selector option 1: exact project path from `load_solution` output. Provide exactly one selector (`path`, `name`, or `id`).
+- `projectName` (optional): Project selector option 2: project name from `load_solution` output.
+- `projectId` (optional): Project selector option 3: projectId from `load_solution` output.
+- `direction` (optional): Dependency direction: `outgoing`, `incoming`, or `both`. Defaults to `both`.
+
+
 ### `understand_codebase`
 
 Quick codebase orientation: returns project structure with dependencies and hotspots (most complex/commented methods). Use at session start to identify high-impact areas. Profiles: `quick` (fast), `standard` (balanced), `deep` (thorough).
@@ -83,15 +94,13 @@ Parameters:
 - `direction` (optional): Traversal direction: `upstream`, `downstream`, or `both`. Aliases `up`/`down` are accepted. Default is `both`.
 - `depth` (optional): Traversal depth as a non-negative integer. Defaults to `2` when omitted; values below `1` execute as depth `1`.
 
-### `list_dependencies`
+### `find_usages`
 
-Lists project dependencies. Returns all projects that a project depends on (`outgoing`), projects that depend on it (`incoming`), or both. Use at session start to understand project relationships. Without a specific project selector, returns dependencies across the solution.
+Finds references/usages of a symbol within a project or the entire solution. Use to locate where a type, method, property, or field is being used. Returns reference locations with file paths and line numbers. Requires `symbolId` from `resolve_symbol`, `list_types`, or `list_members`.
 
 Parameters:
-- `projectPath` (optional): Project selector option 1: exact project path from `load_solution` output. Provide exactly one selector (`path`, `name`, or `id`).
-- `projectName` (optional): Project selector option 2: project name from `load_solution` output.
-- `projectId` (optional): Project selector option 3: projectId from `load_solution` output.
-- `direction` (optional): Dependency direction: `outgoing`, `incoming`, or `both`. Defaults to `both`.
+- `symbolId` (required): Canonical symbolId from `resolve_symbol`, `list_types`, or `list_members`.
+- `scope` (optional): Search scope: `project` (containing project) or `solution` (all projects, default).
 
 ### `find_codesmells`
 
