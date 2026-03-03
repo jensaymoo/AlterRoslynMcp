@@ -3,10 +3,12 @@ using RoslynMcp.Core;
 using RoslynMcp.Core.Models.Agent;
 using RoslynMcp.Core.Models.Common;
 using RoslynMcp.Core.Models.Refactoring;
+using RoslynMcp.Infrastructure.Analysis;
 using RoslynMcp.Infrastructure.Navigation;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace RoslynMcp.Infrastructure.Agent;
 
@@ -16,11 +18,13 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
 
     private readonly IRoslynSolutionAccessor _solutionAccessor;
     private readonly IRefactoringService _refactoringService;
+    private readonly RoslynatorAnalyzerCatalog _analyzerCatalog;
 
     public CodeSmellFindingService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService)
     {
         _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
         _refactoringService = refactoringService ?? throw new ArgumentNullException(nameof(refactoringService));
+        _analyzerCatalog = new RoslynatorAnalyzerCatalog();
     }
 
     public async Task<FindCodeSmellsResult> FindCodeSmellsAsync(FindCodeSmellsRequest request, CancellationToken ct)
@@ -98,6 +102,24 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
                 .ThenBy(action => action.Title, StringComparer.Ordinal)
                 .ThenBy(action => action.ActionId, StringComparer.Ordinal)
                 .ToArray();
+
+            // If no refactorings found but this is a diagnostic anchor, still create an action
+            if (actionsAtAnchor.Length == 0 && anchor.IsDiagnostic && anchor.AnchorKind.StartsWith("Diagnostic:"))
+            {
+                var diagnosticId = anchor.AnchorKind.Substring("Diagnostic:".Length);
+                actionsAtAnchor = new[]
+                {
+                    new RefactoringActionDescriptor(
+                        $"diagnostic_{diagnosticId}",
+                        $"Diagnostic: {diagnosticId}",
+                        "analyzer",
+                        "roslynator_diagnostic",
+                        "info",
+                        new PolicyDecisionInfo("allow", "diagnostic", "Found by analyzer"),
+                        new SourceLocation(anchor.FilePath, anchor.Line, anchor.Column),
+                        diagnosticId)
+                };
+            }
 
             if (actionsAtAnchor.Length == 0)
             {
@@ -189,18 +211,11 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
     {
         var normalizedPath = filePath ?? string.Empty;
 
-        foreach (var member in syntaxRoot.DescendantNodes().OfType<MemberDeclarationSyntax>())
+        // Collect anchors at ALL syntax nodes, not just member declarations
+        // This allows finding refactorings at any position in the code
+        foreach (var node in syntaxRoot.DescendantNodes())
         {
-            if (member is not BaseTypeDeclarationSyntax
-                && member is not MethodDeclarationSyntax
-                && member is not ConstructorDeclarationSyntax
-                && member is not PropertyDeclarationSyntax
-                && member is not FieldDeclarationSyntax)
-            {
-                continue;
-            }
-
-            var lineSpan = member.GetLocation().GetLineSpan();
+            var lineSpan = node.GetLocation().GetLineSpan();
             var start = lineSpan.StartLinePosition;
             var anchorPath = string.IsNullOrWhiteSpace(lineSpan.Path) ? normalizedPath : lineSpan.Path;
             if (string.IsNullOrWhiteSpace(anchorPath))
@@ -212,12 +227,12 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
                 anchorPath,
                 start.Line + 1,
                 start.Character + 1,
-                member.Kind().ToString(),
+                node.GetType().Name,
                 IsDiagnostic: false);
         }
     }
 
-    private static async Task<IReadOnlyList<AnchorPosition>> EnumerateDiagnosticAnchorsAsync(Document document, CancellationToken ct)
+    private async Task<IReadOnlyList<AnchorPosition>> EnumerateDiagnosticAnchorsAsync(Document document, CancellationToken ct)
     {
         var compilation = await document.Project.GetCompilationAsync(ct).ConfigureAwait(false);
         if (compilation is null)
@@ -232,7 +247,23 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
         }
 
         var anchors = new List<AnchorPosition>();
-        foreach (var diagnostic in compilation.GetDiagnostics(ct))
+
+        // Get compiler diagnostics
+        var compilerAnchors = GetCompilerDiagnostics(compilation, tree);
+        anchors.AddRange(compilerAnchors);
+
+        // Get Roslynator analyzer diagnostics
+        var analyzerAnchors = await GetRoslynatorDiagnosticsAsync(compilation, tree, ct).ConfigureAwait(false);
+        anchors.AddRange(analyzerAnchors);
+
+        return anchors;
+    }
+
+    private static IEnumerable<AnchorPosition> GetCompilerDiagnostics(Compilation compilation, SyntaxTree tree)
+    {
+        var anchors = new List<AnchorPosition>();
+
+        foreach (var diagnostic in compilation.GetDiagnostics())
         {
             if (!diagnostic.Location.IsInSource || diagnostic.Location.SourceTree is null)
             {
@@ -244,25 +275,55 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
                 continue;
             }
 
-            var lineSpan = diagnostic.Location.GetLineSpan();
-            var start = lineSpan.StartLinePosition;
-            var anchorPath = string.IsNullOrWhiteSpace(lineSpan.Path)
-                ? diagnostic.Location.SourceTree.FilePath
-                : lineSpan.Path;
-            if (string.IsNullOrWhiteSpace(anchorPath))
-            {
-                continue;
-            }
-
-            anchors.Add(new AnchorPosition(
-                anchorPath,
-                start.Line + 1,
-                start.Character + 1,
-                $"Diagnostic:{diagnostic.Id}",
-                IsDiagnostic: true));
+            anchors.Add(CreateDiagnosticAnchor(diagnostic));
         }
 
         return anchors;
+    }
+
+    private async Task<IReadOnlyList<AnchorPosition>> GetRoslynatorDiagnosticsAsync(Compilation compilation, SyntaxTree tree, CancellationToken ct)
+    {
+        var anchors = new List<AnchorPosition>();
+
+        var (analyzers, analyzerError) = _analyzerCatalog.GetCatalog();
+        if (analyzerError is not null || analyzers.IsDefaultOrEmpty)
+        {
+            return anchors;
+        }
+
+        try
+        {
+            var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers);
+            var allDiagnostics = await compilationWithAnalyzers.GetAllDiagnosticsAsync(ct).ConfigureAwait(false);
+            var analyzerDiagnostics = allDiagnostics.Where(d => d.Location.IsInSource && d.Location.SourceTree == tree);
+
+            foreach (var diagnostic in analyzerDiagnostics)
+            {
+                anchors.Add(CreateDiagnosticAnchor(diagnostic));
+            }
+        }
+        catch (Exception)
+        {
+            // If analyzer diagnostics fail, just continue with compiler diagnostics
+        }
+
+        return anchors;
+    }
+
+    private static AnchorPosition CreateDiagnosticAnchor(Diagnostic diagnostic)
+    {
+        var lineSpan = diagnostic.Location.GetLineSpan();
+        var start = lineSpan.StartLinePosition;
+        var anchorPath = string.IsNullOrWhiteSpace(lineSpan.Path)
+            ? diagnostic.Location.SourceTree?.FilePath
+            : lineSpan.Path;
+
+        return new AnchorPosition(
+            anchorPath ?? string.Empty,
+            start.Line + 1,
+            start.Character + 1,
+            $"Diagnostic:{diagnostic.Id}",
+            IsDiagnostic: true);
     }
 
     private static FindCodeSmellsResult CreateInvalidInputResult(string message, params (string Key, string? Value)[] details)

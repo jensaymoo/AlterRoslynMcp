@@ -15,6 +15,84 @@ namespace RoslynMcp.Infrastructure.Tests;
 public sealed class CodeSmellFindingServiceTests
 {
     [Fact]
+    public async Task FindCodeSmells_DetectsMultipleCommonSmells()
+    {
+        var filePath = Path.Combine("SampleProject", "SmellTestClass.cs");
+        var solution = CreateSolution(filePath, """
+public class SmellTestClass
+{
+    private readonly string _unusedField = "test";
+    
+    public void TestEmptyCatch()
+    {
+        try { var x = int.Parse("1"); }
+        catch { }
+    }
+    
+    public int Calculate(int value) => value * 42 + 100 - 7;
+    
+    public void DoSomething(int a, int b, int c, int d, int e, int f) { }
+    
+    public bool IsValid() => true;
+    
+    public int CalculateSumOFNumbers(int A, int B) => A + B;
+}
+""");
+
+        var refactoring = new RecordingRefactoringService(
+            new Dictionary<(string FileName, int Line), GetRefactoringsAtPositionResult>(StringTupleComparer.OrdinalIgnoreCase)
+            {
+                [("SmellTestClass.cs", 1)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-1", "Extract interface", "refactor", "review_required") }),
+                [("SmellTestClass.cs", 3)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-2", "Remove unused field", "compiler", "safe", diagnosticId: "CS0168") }),
+                [("SmellTestClass.cs", 6)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-3", "Use expression body", "style", "safe") }),
+                [("SmellTestClass.cs", 8)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-4", "Extract method", "refactor", "review_required") }),
+                [("SmellTestClass.cs", 9)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-5", "Introduce parameter object", "refactor", "review_required") }),
+                [("SmellTestClass.cs", 10)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-6", "Use expression body", "style", "safe") }),
+                [("SmellTestClass.cs", 11)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-7", "Rename to naming convention", "style", "safe") }),
+                [("SmellTestClass.cs", 2)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-a", "Extract interface", "refactor", "review_required") }),
+                [("SmellTestClass.cs", 4)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-b", "Remove unused field", "compiler", "safe") }),
+                [("SmellTestClass.cs", 5)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-c", "Empty catch block", "style", "review_required") }),
+                [("SmellTestClass.cs", 7)] = new GetRefactoringsAtPositionResult(
+                    new[] { CreateAction("ref-d", "Use expression body", "style", "safe") }),
+            });
+
+        var service = new CodeSmellFindingService(new RecordingSolutionAccessor(solution), refactoring);
+        var result = await service.FindCodeSmellsAsync(
+            new FindCodeSmellsRequest(filePath),
+            CancellationToken.None);
+
+        result.Error.IsNull();
+        
+        // Service should find at least some code smell actions
+        (result.Actions.Count >= 11).IsTrue();
+        
+        var actionTitles = result.Actions.Select(a => a.Title).ToList();
+        
+        // Verify some key smells are detected
+        actionTitles.Any(t => t.Contains("Extract interface")).IsTrue();
+        actionTitles.Any(t => t.Contains("Remove unused field")).IsTrue();
+        
+        // Verify all actions have required properties
+        result.Actions.All(action =>
+                !string.IsNullOrWhiteSpace(action.Title)
+                && !string.IsNullOrWhiteSpace(action.Category)
+                && !string.IsNullOrWhiteSpace(action.Location.FilePath)
+                && !string.IsNullOrWhiteSpace(action.Origin)
+                && !string.IsNullOrWhiteSpace(action.RiskLevel))
+            .IsTrue();
+    }
+
+    [Fact]
     public async Task FindCodeSmells_ReturnsFlatActions()
     {
         var solution = CreateSolution();
