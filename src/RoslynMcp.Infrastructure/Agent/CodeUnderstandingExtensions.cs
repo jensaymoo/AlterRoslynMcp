@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis;
 using System.Collections.Immutable;
 using RoslynMcp.Core.Models.Agent;
+using RoslynMcp.Core.Models.Analysis;
 using RoslynMcp.Infrastructure.Navigation;
 
 namespace RoslynMcp.Infrastructure.Agent;
@@ -256,5 +257,13 @@ public static partial class CodeUnderstandingExtensions
             filePath,
             line,
             column);
+    }
+
+    public static DiagnosticsSummary ToDiagnosticsSummary(this IReadOnlyList<DiagnosticItem> diagnostics)
+    {
+        var error = diagnostics.Count(static d => string.Equals(d.Severity, "error", StringComparison.OrdinalIgnoreCase));
+        var warning = diagnostics.Count(static d => string.Equals(d.Severity, "warning", StringComparison.OrdinalIgnoreCase));
+        var info = diagnostics.Count - error - warning;
+        return new DiagnosticsSummary(error, warning, info, diagnostics.Count);
     }
 }

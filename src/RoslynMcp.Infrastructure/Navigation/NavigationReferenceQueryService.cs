@@ -83,7 +83,7 @@ internal sealed class NavigationReferenceQueryService
             }
 
             var implementations = await _referenceSearchService.FindImplementationsAsync(symbol, solution, ct).ConfigureAwait(false);
-            return new FindImplementationsResult(NavigationModelUtilities.CreateDescriptor(symbol), implementations);
+            return new FindImplementationsResult(symbol.ToSymbolDescriptor(), implementations);
         }
         catch (OperationCanceledException)
         {
@@ -172,7 +172,7 @@ internal sealed class NavigationReferenceQueryService
                 .ConfigureAwait(false);
 
             return new FindReferencesScopedResult(
-                NavigationModelUtilities.CreateDescriptor(symbol),
+                symbol.ToSymbolDescriptor(),
                 references,
                 references.Count);
         }

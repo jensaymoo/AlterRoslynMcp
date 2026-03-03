@@ -6,7 +6,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Rename;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using static RoslynMcp.Infrastructure.Refactoring.RefactoringOperationOrchestrator;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
@@ -33,7 +32,7 @@ internal sealed class RefactoringActionOperations
         string policyDecision = "n/a";
         var affectedDocumentCount = 0;
 
-        var requestValidationError = RefactoringRequestValidator.ValidateGetRefactoringsAtPosition(request);
+        var requestValidationError = request.ValidateGetRefactoringsAtPosition();
         if (requestValidationError != null)
         {
             _owner.LogActionPipelineFlow(operation, actionOrigin, actionType, policyDecision, startedAt, ErrorCodes.InvalidInput, affectedDocumentCount);
@@ -50,12 +49,12 @@ internal sealed class RefactoringActionOperations
 
         var document = solution.Projects
             .SelectMany(static project => project.Documents)
-            .FirstOrDefault(d => MatchesByNormalizedPath(d.FilePath, request.Path));
+            .FirstOrDefault(d => d.FilePath.MatchesByNormalizedPath(request.Path));
         if (document == null)
         {
             var pathError = new GetRefactoringsAtPositionResult(
                 Array.Empty<RefactoringActionDescriptor>(),
-                CreateError(ErrorCodes.PathOutOfScope,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.PathOutOfScope,
                     "The provided path is outside the selected solution scope.",
                     ("path", request.Path),
                     ("operation", "get_refactorings_at_position")));
@@ -68,7 +67,7 @@ internal sealed class RefactoringActionOperations
         {
             var invalidLine = new GetRefactoringsAtPositionResult(
                 Array.Empty<RefactoringActionDescriptor>(),
-                CreateError(ErrorCodes.InvalidInput,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.InvalidInput,
                     "line is outside document bounds.",
                     ("operation", "get_refactorings_at_position")));
             _owner.LogActionPipelineFlow(operation, actionOrigin, actionType, policyDecision, startedAt, ErrorCodes.InvalidInput, affectedDocumentCount);
@@ -81,7 +80,7 @@ internal sealed class RefactoringActionOperations
         {
             var invalidColumn = new GetRefactoringsAtPositionResult(
                 Array.Empty<RefactoringActionDescriptor>(),
-                CreateError(ErrorCodes.InvalidInput,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.InvalidInput,
                     "column is outside line bounds.",
                     ("operation", "get_refactorings_at_position")));
             _owner.LogActionPipelineFlow(operation, actionOrigin, actionType, policyDecision, startedAt, ErrorCodes.InvalidInput, affectedDocumentCount);
@@ -94,7 +93,7 @@ internal sealed class RefactoringActionOperations
         {
             var invalidRange = new GetRefactoringsAtPositionResult(
                 Array.Empty<RefactoringActionDescriptor>(),
-                CreateError(ErrorCodes.InvalidInput,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.InvalidInput,
                     "selection is outside document bounds.",
                     ("operation", "get_refactorings_at_position")));
             _owner.LogActionPipelineFlow(operation, actionOrigin, actionType, policyDecision, startedAt, ErrorCodes.InvalidInput, affectedDocumentCount);
@@ -102,7 +101,7 @@ internal sealed class RefactoringActionOperations
         }
 
         var position = line.Start + (request.Column - 1);
-        var profile = string.IsNullOrWhiteSpace(request.PolicyProfile) ? PolicyProfileDefault : request.PolicyProfile.Trim();
+        var profile = string.IsNullOrWhiteSpace(request.PolicyProfile) ? RefactoringOperationOrchestrator.PolicyProfileDefault : request.PolicyProfile.Trim();
         var discovered = await _owner.DiscoverActionsAtPositionAsync(document, position, selectionStart, selectionLength, ct).ConfigureAwait(false);
         var actions = discovered
             .OrderBy(static item => item.FilePath, StringComparer.Ordinal)
@@ -155,7 +154,7 @@ internal sealed class RefactoringActionOperations
                 string.Empty,
                 string.Empty,
                 Array.Empty<ChangedFilePreview>(),
-                CreateError(ErrorCodes.ActionNotFound,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.ActionNotFound,
                     "actionId is invalid or unsupported.",
                     ("operation", "preview_refactoring")));
             _owner.LogActionPipelineFlow(operationName, "unknown", "unknown", "n/a", startedAt, ErrorCodes.ActionNotFound, 0);
@@ -175,7 +174,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 string.Empty,
                 Array.Empty<ChangedFilePreview>(),
-                CreateError(ErrorCodes.WorkspaceChanged,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.WorkspaceChanged,
                     "Workspace changed since actionId was produced.",
                     ("operation", "preview_refactoring")));
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, "n/a", startedAt, ErrorCodes.WorkspaceChanged, 0);
@@ -189,7 +188,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 string.Empty,
                 Array.Empty<ChangedFilePreview>(),
-                CreateError(ErrorCodes.ActionNotFound,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.ActionNotFound,
                     "No matching refactoring action found for actionId.",
                     ("operation", "preview_refactoring")));
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, "n/a", startedAt, ErrorCodes.ActionNotFound, 0);
@@ -197,7 +196,7 @@ internal sealed class RefactoringActionOperations
         }
 
         var preview = await actionOperation.ApplyAsync(solution, ct).ConfigureAwait(false);
-        var changedFiles = await CollectChangedFilesAsync(solution, preview, ct).ConfigureAwait(false);
+        var changedFiles = await solution.CollectChangedFilesAsync(preview, ct).ConfigureAwait(false);
         _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, "n/a", startedAt, "ok", changedFiles.Count);
         return new PreviewRefactoringResult(request.ActionId, actionOperation.Title, changedFiles);
     }
@@ -216,7 +215,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 0,
                 Array.Empty<string>(),
-                CreateError(ErrorCodes.ActionNotFound,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.ActionNotFound,
                     "actionId is invalid or unsupported.",
                     ("operation", "apply_refactoring")));
             _owner.LogActionPipelineFlow(operationName, "unknown", "unknown", "n/a", startedAt, ErrorCodes.ActionNotFound, 0);
@@ -230,7 +229,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 0,
                 Array.Empty<string>(),
-                CreateError(ErrorCodes.PolicyBlocked,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.PolicyBlocked,
                     policy.ReasonMessage,
                     ("operation", "apply_refactoring"),
                     ("policyDecision", policy.Decision),
@@ -252,7 +251,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 0,
                 Array.Empty<string>(),
-                CreateError(ErrorCodes.WorkspaceChanged,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.WorkspaceChanged,
                     "Workspace changed since actionId was produced.",
                     ("operation", "apply_refactoring")));
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, policy.Decision, startedAt, ErrorCodes.WorkspaceChanged, 0);
@@ -266,7 +265,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 0,
                 Array.Empty<string>(),
-                CreateError(ErrorCodes.ActionNotFound,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.ActionNotFound,
                     "No matching refactoring action found for actionId.",
                     ("operation", "apply_refactoring")));
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, policy.Decision, startedAt, ErrorCodes.ActionNotFound, 0);
@@ -274,14 +273,14 @@ internal sealed class RefactoringActionOperations
         }
 
         var updated = await actionOperation.ApplyAsync(solution, ct).ConfigureAwait(false);
-        var changedFiles = await CollectChangedFilesAsync(solution, updated, ct).ConfigureAwait(false);
+        var changedFiles = await solution.CollectChangedFilesAsync(updated, ct).ConfigureAwait(false);
         if (changedFiles.Count == 0)
         {
             var conflict = new ApplyRefactoringResult(
                 request.ActionId,
                 0,
                 Array.Empty<string>(),
-                CreateError(ErrorCodes.FixConflict,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.FixConflict,
                     "Refactoring produced no changes to apply.",
                     ("operation", "apply_refactoring")));
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, policy.Decision, startedAt, ErrorCodes.FixConflict, 0);
@@ -295,7 +294,7 @@ internal sealed class RefactoringActionOperations
                 request.ActionId,
                 0,
                 Array.Empty<string>(),
-                applyError ?? CreateError(ErrorCodes.InternalError, "Failed to apply refactoring changes."));
+                applyError ?? RefactoringOperationExtensions.CreateError(ErrorCodes.InternalError, "Failed to apply refactoring changes."));
             _owner.LogActionPipelineFlow(operationName, identity.Origin, identity.Category, policy.Decision, startedAt, applyFailed.Error?.Code ?? ErrorCodes.InternalError, 0);
             return applyFailed;
         }
@@ -320,7 +319,7 @@ internal sealed class CodeFixOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var requestValidationError = RefactoringRequestValidator.ValidateGetCodeFixes(request);
+        var requestValidationError = request.ValidateGetCodeFixes();
         if (requestValidationError != null)
         {
             return requestValidationError;
@@ -332,17 +331,17 @@ internal sealed class CodeFixOperations
             return new GetCodeFixesResult(Array.Empty<CodeFixDescriptor>(), error);
         }
 
-        var documents = ResolveScopeDocuments(solution, request.Scope, request.Path).ToArray();
+        var documents = solution.ResolveScopeDocuments(request.Scope, request.Path).ToArray();
         if (documents.Length == 0)
         {
             return new GetCodeFixesResult(Array.Empty<CodeFixDescriptor>(),
-                CreateError(ErrorCodes.PathOutOfScope,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.PathOutOfScope,
                     "The provided path is outside the selected solution scope.",
                     ("path", request.Path),
                     ("operation", "get_code_fixes")));
         }
 
-        var diagnosticFilter = CreateDiagnosticFilter(request.DiagnosticIds);
+        var diagnosticFilter = request.DiagnosticIds.ToDiagnosticFilter();
         var categoryFilter = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim();
         var fixes = new List<CodeFixDescriptor>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -362,7 +361,7 @@ internal sealed class CodeFixOperations
                          .ThenBy(static d => d.Location.SourceSpan.Start)
                          .ThenBy(static d => d.Id, StringComparer.Ordinal))
             {
-                if (!IsSupportedDiagnostic(diagnostic))
+                if (!diagnostic.IsSupportedDiagnostic())
                 {
                     continue;
                 }
@@ -372,18 +371,18 @@ internal sealed class CodeFixOperations
                     continue;
                 }
 
-                if (categoryFilter != null && !string.Equals(SupportedFixCategory, categoryFilter, StringComparison.OrdinalIgnoreCase))
+                if (categoryFilter != null && !string.Equals(RefactoringOperationOrchestrator.SupportedFixCategory, categoryFilter, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                var declaration = await TryGetUnusedLocalDeclarationAsync(document, diagnostic, ct).ConfigureAwait(false);
+                var declaration = await document.TryGetUnusedLocalDeclarationAsync(diagnostic, ct).ConfigureAwait(false);
                 if (declaration == null)
                 {
                     continue;
                 }
 
-                var fix = CreateFixDescriptor(document, diagnostic, declaration, version);
+                var fix = declaration.ToFixDescriptor(document, diagnostic, version);
                 if (seen.Add(fix.FixId))
                 {
                     fixes.Add(fix);
@@ -407,31 +406,31 @@ internal sealed class CodeFixOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var parse = ParseFixId(request.FixId);
+        var parse = request.FixId.ParseFixId();
         if (parse == null)
         {
-            return CreatePreviewError(ErrorCodes.FixNotFound, "fixId is invalid or unsupported.");
+            return RefactoringOperationExtensions.CreatePreviewError(ErrorCodes.FixNotFound, "fixId is invalid or unsupported.");
         }
 
         var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
         if (solution == null)
         {
-            return CreatePreviewError(error ?? new ErrorInfo(ErrorCodes.InternalError, "Unable to access the current solution."));
+            return RefactoringOperationExtensions.CreatePreviewError(error ?? new ErrorInfo(ErrorCodes.InternalError, "Unable to access the current solution."));
         }
 
         if (version != parse.WorkspaceVersion)
         {
-            return CreatePreviewError(ErrorCodes.WorkspaceChanged, "Workspace changed since fixId was produced.");
+            return RefactoringOperationExtensions.CreatePreviewError(ErrorCodes.WorkspaceChanged, "Workspace changed since fixId was produced.");
         }
 
         var operation = await _owner.TryBuildFixOperationAsync(solution, parse, ct).ConfigureAwait(false);
         if (operation == null)
         {
-            return CreatePreviewError(ErrorCodes.FixNotFound, "No matching code fix found for fixId.");
+            return RefactoringOperationExtensions.CreatePreviewError(ErrorCodes.FixNotFound, "No matching code fix found for fixId.");
         }
 
         var previewSolution = await operation.ApplyAsync(solution, ct).ConfigureAwait(false);
-        var changedFiles = await CollectChangedFilesAsync(solution, previewSolution, ct).ConfigureAwait(false);
+        var changedFiles = await solution.CollectChangedFilesAsync(previewSolution, ct).ConfigureAwait(false);
 
         return new PreviewCodeFixResult(
             request.FixId,
@@ -444,10 +443,10 @@ internal sealed class CodeFixOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var parse = ParseFixId(request.FixId);
+        var parse = request.FixId.ParseFixId();
         if (parse == null)
         {
-            return CreateApplyError(request.FixId, ErrorCodes.FixNotFound, "fixId is invalid or unsupported.");
+            return RefactoringOperationExtensions.CreateApplyError(request.FixId, ErrorCodes.FixNotFound, "fixId is invalid or unsupported.");
         }
 
         var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
@@ -458,27 +457,27 @@ internal sealed class CodeFixOperations
 
         if (version != parse.WorkspaceVersion)
         {
-            return CreateApplyError(request.FixId, ErrorCodes.WorkspaceChanged, "Workspace changed since fixId was produced.");
+            return RefactoringOperationExtensions.CreateApplyError(request.FixId, ErrorCodes.WorkspaceChanged, "Workspace changed since fixId was produced.");
         }
 
         var operation = await _owner.TryBuildFixOperationAsync(solution, parse, ct).ConfigureAwait(false);
         if (operation == null)
         {
-            return CreateApplyError(request.FixId, ErrorCodes.FixNotFound, "No matching code fix found for fixId.");
+            return RefactoringOperationExtensions.CreateApplyError(request.FixId, ErrorCodes.FixNotFound, "No matching code fix found for fixId.");
         }
 
         var updatedSolution = await operation.ApplyAsync(solution, ct).ConfigureAwait(false);
-        var changedFiles = await CollectChangedFilesAsync(solution, updatedSolution, ct).ConfigureAwait(false);
+        var changedFiles = await solution.CollectChangedFilesAsync(updatedSolution, ct).ConfigureAwait(false);
         if (changedFiles.Count == 0)
         {
-            return CreateApplyError(request.FixId, ErrorCodes.FixConflict, "Code fix could not produce any workspace changes.");
+            return RefactoringOperationExtensions.CreateApplyError(request.FixId, ErrorCodes.FixConflict, "Code fix could not produce any workspace changes.");
         }
 
         var (applied, applyError) = await _owner._solutionAccessor.TryApplySolutionAsync(updatedSolution, ct).ConfigureAwait(false);
         if (!applied)
         {
             return new ApplyCodeFixResult(request.FixId, 0, Array.Empty<string>(),
-                applyError ?? CreateError(ErrorCodes.InternalError, "Failed to apply code fix changes."));
+                applyError ?? RefactoringOperationExtensions.CreateError(ErrorCodes.InternalError, "Failed to apply code fix changes."));
         }
 
         var paths = changedFiles.Select(static file => file.FilePath).ToArray();
@@ -500,7 +499,7 @@ internal sealed class CleanupOperations
         ArgumentNullException.ThrowIfNull(request);
         ct.ThrowIfCancellationRequested();
 
-        var requestValidationError = RefactoringRequestValidator.ValidateExecuteCleanup(request);
+        var requestValidationError = request.ValidateExecuteCleanup();
         if (requestValidationError != null)
         {
             return requestValidationError;
@@ -514,7 +513,7 @@ internal sealed class CleanupOperations
 
         var effectiveExpectedWorkspaceVersion = request.ExpectedWorkspaceVersion;
 
-        var scopedDocuments = ResolveScopeDocuments(solution, request.Scope, request.Path)
+        var scopedDocuments = solution.ResolveScopeDocuments(request.Scope, request.Path)
             .OrderBy(static d => d.FilePath ?? d.Name, StringComparer.Ordinal)
             .ToArray();
         if (scopedDocuments.Length == 0)
@@ -524,7 +523,7 @@ internal sealed class CleanupOperations
                 Array.Empty<string>(),
                 Array.Empty<string>(),
                 Array.Empty<string>(),
-                CreateError(ErrorCodes.PathOutOfScope,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.PathOutOfScope,
                     "The provided path is outside the selected solution scope.",
                     ("operation", "execute_cleanup"),
                     ("path", request.Path)));
@@ -533,7 +532,7 @@ internal sealed class CleanupOperations
         const bool healthCheckPerformed = true;
         var autoReloadAttempted = false;
         var autoReloadSucceeded = false;
-        var health = EvaluateWorkspaceFilesystemHealth(scopedDocuments);
+        var health = scopedDocuments.EvaluateWorkspaceFilesystemHealth();
         if (!health.IsConsistent)
         {
             if (_owner._solutionAccessor is ISolutionSessionService sessionService)
@@ -546,7 +545,7 @@ internal sealed class CleanupOperations
                     var (reloadedSolution, reloadedVersion, reloadError) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
                     if (reloadedSolution == null)
                     {
-                        return CreateStaleWorkspaceResult(
+                        return RefactoringOperationExtensions.CreateStaleWorkspaceResult(
                             request.Scope,
                             healthCheckPerformed,
                             autoReloadAttempted,
@@ -559,7 +558,7 @@ internal sealed class CleanupOperations
                     version = reloadedVersion;
                     effectiveExpectedWorkspaceVersion = version;
 
-                    scopedDocuments = ResolveScopeDocuments(solution, request.Scope, request.Path)
+                    scopedDocuments = solution.ResolveScopeDocuments(request.Scope, request.Path)
                         .OrderBy(static d => d.FilePath ?? d.Name, StringComparer.Ordinal)
                         .ToArray();
                     if (scopedDocuments.Length == 0)
@@ -568,18 +567,18 @@ internal sealed class CleanupOperations
                             request.Scope,
                             Array.Empty<string>(),
                             Array.Empty<string>(),
-                            BuildCleanupMetadataWarnings(healthCheckPerformed, autoReloadAttempted, autoReloadSucceeded),
-                            CreateError(ErrorCodes.PathOutOfScope,
+                            RefactoringOperationExtensions.BuildCleanupMetadataWarnings(healthCheckPerformed, autoReloadAttempted, autoReloadSucceeded),
+                            RefactoringOperationExtensions.CreateError(ErrorCodes.PathOutOfScope,
                                 "The provided path is outside the selected solution scope.",
                                 ("operation", "execute_cleanup"),
                                 ("path", request.Path)));
                     }
 
-                    health = EvaluateWorkspaceFilesystemHealth(scopedDocuments);
+                    health = scopedDocuments.EvaluateWorkspaceFilesystemHealth();
                 }
                 else
                 {
-                    return CreateStaleWorkspaceResult(
+                    return RefactoringOperationExtensions.CreateStaleWorkspaceResult(
                         request.Scope,
                         healthCheckPerformed,
                         autoReloadAttempted,
@@ -591,7 +590,7 @@ internal sealed class CleanupOperations
 
             if (!health.IsConsistent)
             {
-                return CreateStaleWorkspaceResult(
+                return RefactoringOperationExtensions.CreateStaleWorkspaceResult(
                     request.Scope,
                     healthCheckPerformed,
                     autoReloadAttempted,
@@ -600,7 +599,7 @@ internal sealed class CleanupOperations
             }
         }
 
-        var cleanupMetadataWarnings = BuildCleanupMetadataWarnings(healthCheckPerformed, autoReloadAttempted, autoReloadSucceeded);
+        var cleanupMetadataWarnings = RefactoringOperationExtensions.BuildCleanupMetadataWarnings(healthCheckPerformed, autoReloadAttempted, autoReloadSucceeded);
 
         if (effectiveExpectedWorkspaceVersion.HasValue && effectiveExpectedWorkspaceVersion.Value != version)
         {
@@ -609,25 +608,25 @@ internal sealed class CleanupOperations
                 Array.Empty<string>(),
                 Array.Empty<string>(),
                 cleanupMetadataWarnings,
-                CreateError(ErrorCodes.WorkspaceChanged,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.WorkspaceChanged,
                     "Workspace changed before cleanup started.",
                     ("operation", "execute_cleanup")));
         }
 
         var updated = solution;
-        updated = await _owner.ApplyDiagnosticCleanupStepAsync(updated, scopedDocuments, CleanupRemoveUnusedUsingDiagnostics, ct).ConfigureAwait(false);
+        updated = await _owner.ApplyDiagnosticCleanupStepAsync(updated, scopedDocuments, RefactoringOperationOrchestrator.CleanupRemoveUnusedUsingDiagnostics, ct).ConfigureAwait(false);
         updated = await _owner.OrganizeUsingsAsync(updated, scopedDocuments, ct).ConfigureAwait(false);
-        updated = await _owner.ApplyDiagnosticCleanupStepAsync(updated, scopedDocuments, CleanupModifierOrderDiagnostics, ct).ConfigureAwait(false);
-        updated = await _owner.ApplyDiagnosticCleanupStepAsync(updated, scopedDocuments, CleanupReadonlyDiagnostics, ct).ConfigureAwait(false);
+        updated = await _owner.ApplyDiagnosticCleanupStepAsync(updated, scopedDocuments, RefactoringOperationOrchestrator.CleanupModifierOrderDiagnostics, ct).ConfigureAwait(false);
+        updated = await _owner.ApplyDiagnosticCleanupStepAsync(updated, scopedDocuments, RefactoringOperationOrchestrator.CleanupReadonlyDiagnostics, ct).ConfigureAwait(false);
         updated = await _owner.FormatScopeAsync(updated, scopedDocuments, ct).ConfigureAwait(false);
 
-        var changedFiles = await CollectChangedFilesAsync(solution, updated, ct).ConfigureAwait(false);
+        var changedFiles = await solution.CollectChangedFilesAsync(updated, ct).ConfigureAwait(false);
         var changedPaths = changedFiles.Select(static file => file.FilePath).ToArray();
         if (changedPaths.Length == 0)
         {
             return new ExecuteCleanupResult(
                 request.Scope,
-                BuildCleanupRuleIds(),
+                RefactoringOperationExtensions.BuildCleanupRuleIds(),
                 Array.Empty<string>(),
                 cleanupMetadataWarnings);
         }
@@ -635,17 +634,17 @@ internal sealed class CleanupOperations
         var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
         if (versionError != null)
         {
-            return new ExecuteCleanupResult(request.Scope, BuildCleanupRuleIds(), Array.Empty<string>(), cleanupMetadataWarnings, versionError);
+            return new ExecuteCleanupResult(request.Scope, RefactoringOperationExtensions.BuildCleanupRuleIds(), Array.Empty<string>(), cleanupMetadataWarnings, versionError);
         }
 
         if (effectiveExpectedWorkspaceVersion.HasValue && effectiveExpectedWorkspaceVersion.Value != applyVersion)
         {
             return new ExecuteCleanupResult(
                 request.Scope,
-                BuildCleanupRuleIds(),
+                RefactoringOperationExtensions.BuildCleanupRuleIds(),
                 Array.Empty<string>(),
                 cleanupMetadataWarnings,
-                CreateError(ErrorCodes.WorkspaceChanged,
+                RefactoringOperationExtensions.CreateError(ErrorCodes.WorkspaceChanged,
                     "Workspace changed during cleanup execution.",
                     ("operation", "execute_cleanup")));
         }
@@ -655,13 +654,13 @@ internal sealed class CleanupOperations
         {
             return new ExecuteCleanupResult(
                 request.Scope,
-                BuildCleanupRuleIds(),
+                RefactoringOperationExtensions.BuildCleanupRuleIds(),
                 Array.Empty<string>(),
                 cleanupMetadataWarnings,
-                applyError ?? CreateError(ErrorCodes.InternalError, "Failed to apply cleanup changes.", ("operation", "execute_cleanup")));
+                applyError ?? RefactoringOperationExtensions.CreateError(ErrorCodes.InternalError, "Failed to apply cleanup changes.", ("operation", "execute_cleanup")));
         }
 
-        return new ExecuteCleanupResult(request.Scope, BuildCleanupRuleIds(), changedPaths, cleanupMetadataWarnings);
+        return new ExecuteCleanupResult(request.Scope, RefactoringOperationExtensions.BuildCleanupRuleIds(), changedPaths, cleanupMetadataWarnings);
     }
 }
 
@@ -683,15 +682,15 @@ internal sealed class RenameOperations
 
         ct.ThrowIfCancellationRequested();
 
-        var invalidInputError = TryCreateInvalidSymbolIdError(request.SymbolId, "rename-symbol");
+        var invalidInputError = RefactoringOperationExtensions.TryCreateInvalidSymbolIdError(request.SymbolId, "rename-symbol");
         if (invalidInputError != null)
         {
-            return CreateErrorResult(invalidInputError);
+            return RefactoringOperationExtensions.CreateErrorResult(invalidInputError);
         }
 
         if (string.IsNullOrWhiteSpace(request.NewName))
         {
-            return CreateErrorResult(ErrorCodes.InvalidNewName,
+            return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.InvalidNewName,
                 "New name must be provided.",
                 ("newName", request.NewName),
                 ("operation", "rename-symbol"));
@@ -702,38 +701,38 @@ internal sealed class RenameOperations
             var (solution, error) = await _owner.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return CreateErrorResult(error ??
+                return RefactoringOperationExtensions.CreateErrorResult(error ??
                     new ErrorInfo(ErrorCodes.InternalError, "Unable to access the current solution."));
             }
 
             var symbol = await _owner.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return CreateErrorResult(ErrorCodes.SymbolNotFound,
+                return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.SymbolNotFound,
                     $"Symbol '{request.SymbolId}' could not be resolved.",
                     ("symbolId", request.SymbolId),
                     ("operation", "rename-symbol"));
             }
 
-            if (!IsValidIdentifierForSymbol(symbol, request.NewName))
+            if (!request.NewName.IsValidIdentifier(symbol))
             {
-                return CreateErrorResult(ErrorCodes.InvalidNewName,
+                return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.InvalidNewName,
                     $"'{request.NewName}' is not a valid identifier.",
                     ("newName", request.NewName),
                     ("operation", "rename-symbol"));
             }
 
-            if (WouldConflict(symbol, request.NewName))
+            if (symbol.WouldConflict(request.NewName))
             {
-                return CreateErrorResult(ErrorCodes.RenameConflict,
+                return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.RenameConflict,
                     $"Renaming '{symbol.Name}' to '{request.NewName}' would conflict with an existing symbol.",
                     ("symbolId", request.SymbolId),
                     ("newName", request.NewName),
                     ("operation", "rename-symbol"));
             }
 
-            var declarationKeys = GetSourceLocationKeys(symbol);
-            var affectedLocations = await CollectAffectedLocationsAsync(symbol, solution, ct).ConfigureAwait(false);
+            var declarationKeys = symbol.GetSourceLocationKeys();
+            var affectedLocations = await symbol.CollectAffectedLocationsAsync(solution, ct).ConfigureAwait(false);
             var renameOptions = new SymbolRenameOptions(RenameOverloads: false, RenameInStrings: false, RenameInComments: false, RenameFile: false);
             var renamedSolution = await Renamer.RenameSymbolAsync(solution, symbol, renameOptions, request.NewName, ct)
                 .ConfigureAwait(false);
@@ -755,8 +754,8 @@ internal sealed class RenameOperations
             var (applied, applyError) = await _owner._solutionAccessor.TryApplySolutionAsync(renamedSolution, ct).ConfigureAwait(false);
             if (!applied)
             {
-                return CreateErrorResult(applyError ??
-                    CreateError(ErrorCodes.InternalError,
+                return RefactoringOperationExtensions.CreateErrorResult(applyError ??
+                    RefactoringOperationExtensions.CreateError(ErrorCodes.InternalError,
                         "Failed to update the active solution after rename.",
                         ("symbolId", request.SymbolId),
                         ("newName", request.NewName),
@@ -771,14 +770,14 @@ internal sealed class RenameOperations
         }
         catch (ArgumentException ex)
         {
-            return CreateErrorResult(ErrorCodes.InvalidNewName,
+            return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.InvalidNewName,
                 $"'{request.NewName}' is invalid: {ex.Message}",
                 ("newName", request.NewName),
                 ("operation", "rename-symbol"));
         }
         catch (InvalidOperationException ex)
         {
-            return CreateErrorResult(ErrorCodes.RenameConflict,
+            return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.RenameConflict,
                 $"Rename conflict: {ex.Message}",
                 ("symbolId", request.SymbolId),
                 ("newName", request.NewName),
@@ -791,7 +790,7 @@ internal sealed class RenameOperations
         catch (Exception ex)
         {
             _owner._logger.LogError(ex, "RenameSymbol failed for {SymbolId}", request.SymbolId);
-            return CreateErrorResult(ErrorCodes.InternalError,
+            return RefactoringOperationExtensions.CreateErrorResult(ErrorCodes.InternalError,
                 $"Failed to rename symbol '{request.SymbolId}': {ex.Message}",
                 ("symbolId", request.SymbolId),
                 ("newName", request.NewName),

@@ -29,7 +29,7 @@ internal sealed class ListMembersHandler
                 AgentErrorInfo.Normalize(solutionError, "Call load_solution first to select a solution before listing members."));
         }
 
-        if (!CodeUnderstandingQueryService.TryNormalizeMemberKind(request.Kind, out var normalizedMemberKind))
+        if (!request.Kind.TryNormalizeMemberKind(out var normalizedMemberKind))
         {
             return new ListMembersResult(
                 Array.Empty<MemberListEntry>(),
@@ -44,7 +44,7 @@ internal sealed class ListMembersHandler
                     ("expected", "method|property|field|event|ctor")));
         }
 
-        if (!CodeUnderstandingQueryService.TryNormalizeAccessibility(request.Accessibility, out var normalizedAccessibility))
+        if (!request.Accessibility.TryNormalizeAccessibility(out var normalizedAccessibility))
         {
             return new ListMembersResult(
                 Array.Empty<MemberListEntry>(),
@@ -58,7 +58,7 @@ internal sealed class ListMembersHandler
                     ("provided", request.Accessibility ?? string.Empty)));
         }
 
-        if (!CodeUnderstandingQueryService.TryNormalizeBinding(request.Binding, out var normalizedBinding))
+        if (!request.Binding.TryNormalizeBinding(out var normalizedBinding))
         {
             return new ListMembersResult(
                 Array.Empty<MemberListEntry>(),
@@ -93,7 +93,7 @@ internal sealed class ListMembersHandler
             .ThenBy(static item => item.SymbolId, StringComparer.Ordinal)
             .ToArray();
 
-        var (offset, limit) = CodeUnderstandingQueryService.NormalizePaging(request.Offset, request.Limit);
+        var (offset, limit) = request.Offset.NormalizePaging(request.Limit);
         var paged = entries.Skip(offset).Take(limit).ToArray();
         return new ListMembersResult(paged, entries.Length, request.IncludeInherited);
     }

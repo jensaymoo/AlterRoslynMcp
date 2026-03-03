@@ -51,7 +51,7 @@ public sealed class CodeSmellFindingService : ICodeSmellFindingService
 
         var matchingDocuments = solution.Projects
             .SelectMany(static project => project.Documents)
-            .Where(candidate => NavigationModelUtilities.MatchesByNormalizedPath(candidate.FilePath, path))
+            .Where(candidate => candidate.FilePath.MatchesByNormalizedPath(path))
             .OrderBy(static candidate => candidate.FilePath, StringComparer.Ordinal)
             .ToArray();
 

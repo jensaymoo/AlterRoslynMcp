@@ -22,6 +22,6 @@ public sealed class CodeSmellTools
         string path,
         CancellationToken cancellationToken)
         => _codeSmellFindingService.FindCodeSmellsAsync(
-            ToolContractMapper.ToFindCodeSmellsRequest(path),
+            path.ToFindCodeSmellsRequest(),
             cancellationToken);
 }

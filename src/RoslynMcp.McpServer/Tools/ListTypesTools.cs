@@ -36,6 +36,6 @@ public sealed class ListTypesTools
         [Description("Number of results to skip for pagination. Defaults to 0.")]
         int? offset = null)
         => _codeUnderstandingService.ListTypesAsync(
-            ToolContractMapper.ToListTypesRequest(projectPath, projectName, projectId, namespacePrefix, kind, accessibility, limit, offset),
+            projectPath.ToListTypesRequest(projectName, projectId, namespacePrefix, kind, accessibility, limit, offset),
             cancellationToken);
 }

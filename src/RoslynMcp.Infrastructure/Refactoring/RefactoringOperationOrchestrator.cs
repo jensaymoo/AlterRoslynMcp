@@ -16,7 +16,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Text;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
@@ -101,37 +100,8 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
     public Task<ExecuteCleanupResult> ExecuteCleanupAsync(ExecuteCleanupRequest request, CancellationToken ct)
         => _cleanupOperations.ExecuteCleanupAsync(request, ct);
 
-    internal static ExecuteCleanupResult CreateStaleWorkspaceResult(
-        string scope,
-        bool healthCheckPerformed,
-        bool autoReloadAttempted,
-        bool autoReloadSucceeded,
-        int missingFileCount,
-        string? reloadErrorCode = null)
-    {
-        return RefactoringOperationExtensions.CreateStaleWorkspaceResult(
-            scope,
-            healthCheckPerformed,
-            autoReloadAttempted,
-            autoReloadSucceeded,
-            missingFileCount,
-            reloadErrorCode);
-    }
-
-    internal static IReadOnlyList<string> BuildCleanupMetadataWarnings(bool healthCheckPerformed, bool autoReloadAttempted, bool autoReloadSucceeded)
-        => RefactoringOperationExtensions.BuildCleanupMetadataWarnings(healthCheckPerformed, autoReloadAttempted, autoReloadSucceeded);
-
-    internal static CleanupWorkspaceHealth EvaluateWorkspaceFilesystemHealth(IReadOnlyList<Document> scopedDocuments)
-        => scopedDocuments.EvaluateWorkspaceFilesystemHealth();
-
     public Task<RenameSymbolResult> RenameSymbolAsync(RenameSymbolRequest request, CancellationToken ct)
         => _renameOperations.RenameSymbolAsync(request, ct);
-
-    internal static RenameSymbolResult CreateErrorResult(string code, string message, params (string Key, string? Value)[] details)
-        => RefactoringOperationExtensions.CreateErrorResult(code, message, details);
-
-    internal static IReadOnlyList<string> BuildCleanupRuleIds()
-        => RefactoringOperationExtensions.BuildCleanupRuleIds();
 
     internal async Task<Solution> ApplyDiagnosticCleanupStepAsync(
         Solution solution,
@@ -226,12 +196,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         return updated;
     }
 
-    internal static CompilationUnitSyntax OrganizeUsings(CompilationUnitSyntax root)
-        => root.OrganizeUsings();
-
-    internal static SyntaxList<UsingDirectiveSyntax> SortUsingDirectives(SyntaxList<UsingDirectiveSyntax> usings)
-        => usings.SortUsingDirectives();
-
     internal async Task<Solution> FormatScopeAsync(Solution solution, IReadOnlyList<Document> scopeDocuments, CancellationToken ct)
     {
         var updated = solution;
@@ -251,18 +215,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         return updated;
     }
 
-    internal static RenameSymbolResult CreateErrorResult(ErrorInfo? error)
-    {
-        var safeError = error ?? new ErrorInfo(ErrorCodes.InternalError, "An unknown error occurred while renaming a symbol.");
-        return new RenameSymbolResult(null, 0, Array.Empty<SourceLocation>(), Array.Empty<string>(), safeError);
-    }
-
-    internal static ErrorInfo CreateError(string code, string message, params (string Key, string? Value)[] details)
-        => RefactoringOperationExtensions.CreateError(code, message, details);
-
-    internal static ErrorInfo? TryCreateInvalidSymbolIdError(string symbolId, string operation)
-        => RefactoringOperationExtensions.TryCreateInvalidSymbolIdError(symbolId, operation);
-
     internal async Task<(Solution? Solution, ErrorInfo? Error)> TryGetSolutionAsync(CancellationToken ct)
     {
         try
@@ -278,58 +230,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             _logger.LogError(ex, "Failed to access solution state for rename");
             return (null, new ErrorInfo(ErrorCodes.InternalError, "Unable to access the current solution."));
         }
-    }
-
-    internal static bool IsValidIdentifierForSymbol(ISymbol symbol, string candidate)
-        => candidate.IsValidIdentifier(symbol);
-
-    internal static SourceLocation CreateSourceLocation(Location location)
-        => location.ToSourceLocation();
-
-    internal static string GetLocationKey(SourceLocation location)
-        => location.GetLocationKey();
-
-    internal static async Task<IReadOnlyList<SourceLocation>> CollectAffectedLocationsAsync(ISymbol symbol, Solution solution, CancellationToken ct)
-    {
-        var references = await SymbolFinder.FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var locations = new List<SourceLocation>();
-
-        foreach (var reference in references)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            foreach (var location in reference.Locations)
-            {
-                if (!location.Location.IsInSource)
-                {
-                    continue;
-                }
-
-                var sourceLocation = location.Location.ToSourceLocation();
-                var key = sourceLocation.GetLocationKey();
-                if (seen.Add(key))
-                {
-                    locations.Add(sourceLocation);
-                }
-            }
-        }
-
-        foreach (var location in symbol.Locations.Where(l => l.IsInSource))
-        {
-            var sourceLocation = location.ToSourceLocation();
-            var key = sourceLocation.GetLocationKey();
-            if (seen.Add(key))
-            {
-                locations.Add(sourceLocation);
-            }
-        }
-
-        return locations
-            .OrderBy(loc => loc.FilePath, StringComparer.Ordinal)
-            .ThenBy(loc => loc.Line)
-            .ThenBy(loc => loc.Column)
-            .ToList();
     }
 
     internal async Task<ISymbol?> ResolveSymbolAsync(string symbolId, Solution solution, CancellationToken ct)
@@ -358,18 +258,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         return null;
     }
 
-    internal static ISet<string> GetSourceLocationKeys(ISymbol symbol)
-        => symbol.GetSourceLocationKeys();
-
-    internal static bool WouldConflict(ISymbol symbol, string newName)
-        => symbol.WouldConflict(newName);
-
-    internal static bool SymbolConflicts(ISymbol original, ISymbol existing)
-        => original.ConflictsWith(existing);
-
-    internal static bool IsValidScope(string scope)
-        => scope.IsValidScope();
-
     internal async Task<ISymbol?> TryResolveRenamedSymbolAsync(Solution solution,
         string newName,
         ISet<string> originalDeclarationKeys,
@@ -391,9 +279,9 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             {
                 var normalizedCandidate = candidate.OriginalDefinition ?? candidate;
                 foreach (var sourceLocation in normalizedCandidate.Locations.Where(static l => l.IsInSource)
-                             .Select(CreateSourceLocation))
+                             .Select(static location => location.ToSourceLocation()))
                 {
-                    if (originalDeclarationKeys.Contains(GetLocationKey(sourceLocation)))
+                    if (originalDeclarationKeys.Contains(sourceLocation.GetLocationKey()))
                     {
                         return normalizedCandidate;
                     }
@@ -432,37 +320,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             return (null, 0, new ErrorInfo(ErrorCodes.InternalError, "Unable to access workspace version."));
         }
     }
-
-    internal static IEnumerable<Document> ResolveScopeDocuments(Solution solution, string scope, string? path)
-        => solution.ResolveScopeDocuments(scope, path);
-
-    internal static bool MatchesByNormalizedPath(string? candidatePath, string path)
-        => candidatePath.MatchesByNormalizedPath(path);
-
-    internal static HashSet<string>? CreateDiagnosticFilter(IReadOnlyList<string>? diagnosticIds)
-        => diagnosticIds.ToDiagnosticFilter();
-
-    internal static bool IsSupportedDiagnostic(Diagnostic diagnostic)
-        => diagnostic.IsSupportedDiagnostic();
-
-    internal static async Task<LocalDeclarationStatementSyntax?> TryGetUnusedLocalDeclarationAsync(
-        Document document,
-        Diagnostic diagnostic,
-        CancellationToken ct)
-        => await document.TryGetUnusedLocalDeclarationAsync(diagnostic, ct).ConfigureAwait(false);
-
-    internal static CodeFixDescriptor CreateFixDescriptor(
-        Document document,
-        Diagnostic diagnostic,
-        LocalDeclarationStatementSyntax declaration,
-        int workspaceVersion)
-        => declaration.ToFixDescriptor(document, diagnostic, workspaceVersion);
-
-    internal static string BuildFixId(int workspaceVersion, string diagnosticId, int spanStart, int spanLength, string filePath)
-        => RefactoringOperationExtensions.BuildFixId(workspaceVersion, diagnosticId, spanStart, spanLength, filePath);
-
-    internal static ParsedFixId? ParseFixId(string fixId)
-        => RefactoringOperationExtensions.ParseFixId(fixId);
 
     internal async Task<FixOperation?> TryBuildFixOperationAsync(Solution solution, ParsedFixId fix, CancellationToken ct)
     {
@@ -525,38 +382,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             });
     }
 
-    internal static async Task<IReadOnlyList<ChangedFilePreview>> CollectChangedFilesAsync(Solution original, Solution updated, CancellationToken ct)
-    {
-        var changedDocumentIds = updated.GetChanges(original)
-            .GetProjectChanges()
-            .SelectMany(static project => project.GetChangedDocuments())
-            .Distinct()
-            .ToArray();
-
-        var changed = new List<ChangedFilePreview>(changedDocumentIds.Length);
-        foreach (var documentId in changedDocumentIds)
-        {
-            ct.ThrowIfCancellationRequested();
-            var originalDoc = original.GetDocument(documentId);
-            var updatedDoc = updated.GetDocument(documentId);
-            var filePath = updatedDoc?.FilePath ?? updatedDoc?.Name ?? originalDoc?.FilePath ?? originalDoc?.Name ?? string.Empty;
-            var editCount = 0;
-            if (originalDoc != null && updatedDoc != null)
-            {
-                var originalText = await originalDoc.GetTextAsync(ct).ConfigureAwait(false);
-                var updatedText = await updatedDoc.GetTextAsync(ct).ConfigureAwait(false);
-                editCount = updatedText.GetTextChanges(originalText).Count;
-            }
-
-            changed.Add(new ChangedFilePreview(filePath, editCount));
-        }
-
-        return changed
-            .Where(static file => !string.IsNullOrWhiteSpace(file.FilePath))
-            .OrderBy(static file => file.FilePath, StringComparer.Ordinal)
-            .ToList();
-    }
-
     internal async Task<IReadOnlyList<DiscoveredAction>> DiscoverActionsAtPositionAsync(
         Document document,
         int position,
@@ -567,7 +392,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         var discovered = new List<DiscoveredAction>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var filePath = document.FilePath ?? document.Name;
-        var selectionSpan = CreateSelectionSpan(position, selectionStart, selectionLength);
+        var selectionSpan = position.CreateSelectionSpan(selectionStart, selectionLength);
 
         var providerDiagnostics = await GetProviderDiagnosticsForDocumentAsync(document, ct).ConfigureAwait(false);
         foreach (var diagnostic in providerDiagnostics)
@@ -579,7 +404,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             }
 
             var span = diagnostic.Location.SourceSpan;
-            if (!span.Contains(position) || !IntersectsSelection(span, selectionStart, selectionLength))
+            if (!span.Contains(position) || !span.IntersectsSelection(selectionStart, selectionLength))
             {
                 continue;
             }
@@ -587,8 +412,8 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             var fixes = await CollectCodeFixActionsAsync(document, diagnostic, ct).ConfigureAwait(false);
             foreach (var fix in fixes)
             {
-                var providerKey = BuildProviderCodeFixKey(fix.ProviderTypeName, diagnostic.Id, fix.Action.EquivalenceKey, fix.Action.Title);
-                var category = GetCodeFixCategory(diagnostic);
+                var providerKey = fix.ProviderTypeName.BuildProviderCodeFixKey(diagnostic.Id, fix.Action.EquivalenceKey, fix.Action.Title);
+                var category = diagnostic.GetCodeFixCategory();
                 var key = string.Join('|', filePath, span.Start, span.Length, fix.Action.Title, category, providerKey);
                 if (!seen.Add(key))
                 {
@@ -603,16 +428,16 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                     filePath,
                     span.Start,
                     span.Length,
-                    CreateSourceLocation(diagnostic.Location),
+                    diagnostic.Location.ToSourceLocation(),
                     diagnostic.Id,
-                    NormalizeNullable(fix.Action.EquivalenceKey)));
+                    fix.Action.EquivalenceKey.NormalizeNullable()));
             }
         }
 
         foreach (var action in await CollectCodeRefactoringActionsAsync(document, selectionSpan, ct).ConfigureAwait(false))
         {
             var span = selectionSpan;
-            var providerKey = BuildProviderRefactoringKey(action.ProviderTypeName, action.Action.EquivalenceKey, action.Action.Title);
+            var providerKey = action.ProviderTypeName.BuildProviderRefactoringKey(action.Action.EquivalenceKey, action.Action.Title);
             var key = string.Join('|', filePath, span.Start, span.Length, action.Action.Title, RefactoringCategoryDefault, providerKey);
             if (!seen.Add(key))
             {
@@ -627,9 +452,9 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                 filePath,
                 span.Start,
                 span.Length,
-                await CreateSourceLocationFromSpanAsync(document, span, ct).ConfigureAwait(false),
+                await document.ToSourceLocationAsync(span, ct).ConfigureAwait(false),
                 null,
-                NormalizeNullable(action.Action.EquivalenceKey)));
+                action.Action.EquivalenceKey.NormalizeNullable()));
         }
 
         var semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
@@ -643,19 +468,19 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                          .ThenBy(static d => d.Id, StringComparer.Ordinal))
             {
                 ct.ThrowIfCancellationRequested();
-                if (!IsSupportedDiagnostic(diagnostic))
+                if (!diagnostic.IsSupportedDiagnostic())
                 {
                     continue;
                 }
 
-                var declaration = await TryGetUnusedLocalDeclarationAsync(document, diagnostic, ct).ConfigureAwait(false);
+                var declaration = await document.TryGetUnusedLocalDeclarationAsync(diagnostic, ct).ConfigureAwait(false);
                 if (declaration == null)
                 {
                     continue;
                 }
 
                 var span = declaration.Span;
-                if (!span.Contains(position) || !IntersectsSelection(span, selectionStart, selectionLength))
+                if (!span.Contains(position) || !span.IntersectsSelection(selectionStart, selectionLength))
                 {
                     continue;
                 }
@@ -677,7 +502,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                     filePath,
                     span.Start,
                     span.Length,
-                    CreateSourceLocation(diagnostic.Location),
+                    diagnostic.Location.ToSourceLocation(),
                     diagnostic.Id,
                     null));
             }
@@ -692,7 +517,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             && localDeclaration.Declaration.Type is not IdentifierNameSyntax { Identifier.ValueText: "var" })
         {
             var typeSpan = localDeclaration.Declaration.Type.Span;
-            if (IntersectsSelection(typeSpan, selectionStart, selectionLength))
+            if (typeSpan.IntersectsSelection(selectionStart, selectionLength))
             {
                 var key = string.Join('|', filePath, typeSpan.Start, typeSpan.Length, RefactoringOperationUseVar);
                 if (seen.Add(key))
@@ -705,7 +530,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                         filePath,
                         typeSpan.Start,
                         typeSpan.Length,
-                        CreateSourceLocation(localDeclaration.GetLocation()),
+                        localDeclaration.GetLocation().ToSourceLocation(),
                         null,
                         RefactoringOperationUseVar));
                 }
@@ -717,12 +542,12 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
 
     internal async Task<FixOperation?> TryBuildActionOperationAsync(Solution solution, ActionExecutionIdentity identity, CancellationToken ct)
     {
-        if (TryParseProviderCodeFixKey(identity.ProviderActionKey, out var codeFixKey))
+        if (identity.ProviderActionKey.TryParseProviderCodeFixKey(out var codeFixKey))
         {
             return await TryBuildProviderCodeFixOperationAsync(solution, identity, codeFixKey, ct).ConfigureAwait(false);
         }
 
-        if (TryParseProviderRefactoringKey(identity.ProviderActionKey, out var refactoringKey))
+        if (identity.ProviderActionKey.TryParseProviderRefactoringKey(out var refactoringKey))
         {
             return await TryBuildProviderRefactoringOperationAsync(solution, identity, refactoringKey, ct).ConfigureAwait(false);
         }
@@ -823,7 +648,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             var selected = actions
                 .Where(candidate => string.Equals(candidate.ProviderTypeName, key.ProviderTypeName, StringComparison.Ordinal))
                 .Select(candidate => candidate.Action)
-                .FirstOrDefault(action => MatchesProviderAction(identity, action, key.ActionTitle));
+                .FirstOrDefault(action => identity.MatchesProviderAction(action, key.ActionTitle));
             if (selected == null)
             {
                 continue;
@@ -833,7 +658,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                 selected.Title,
                 async (currentSolution, cancellationToken) =>
                 {
-                    var currentDocument = FindDocument(currentSolution, identity.FilePath);
+                    var currentDocument = currentSolution.FindDocument(identity.FilePath);
                     if (currentDocument == null)
                     {
                         return currentSolution;
@@ -856,7 +681,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                     var currentAction = currentActions
                         .Where(candidate => string.Equals(candidate.ProviderTypeName, key.ProviderTypeName, StringComparison.Ordinal))
                         .Select(candidate => candidate.Action)
-                        .FirstOrDefault(action => MatchesProviderAction(identity, action, key.ActionTitle));
+                        .FirstOrDefault(action => identity.MatchesProviderAction(action, key.ActionTitle));
 
                     if (currentAction == null)
                     {
@@ -876,7 +701,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         ProviderRefactoringKey key,
         CancellationToken ct)
     {
-        var document = FindDocument(solution, identity.FilePath);
+        var document = solution.FindDocument(identity.FilePath);
         if (document == null)
         {
             return null;
@@ -887,7 +712,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         var selected = actions
             .Where(candidate => string.Equals(candidate.ProviderTypeName, key.ProviderTypeName, StringComparison.Ordinal))
             .Select(candidate => candidate.Action)
-            .FirstOrDefault(action => MatchesProviderAction(identity, action, key.ActionTitle));
+            .FirstOrDefault(action => identity.MatchesProviderAction(action, key.ActionTitle));
         if (selected == null)
         {
             return null;
@@ -897,7 +722,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             selected.Title,
             async (currentSolution, cancellationToken) =>
             {
-                var currentDocument = FindDocument(currentSolution, identity.FilePath);
+                var currentDocument = currentSolution.FindDocument(identity.FilePath);
                 if (currentDocument == null)
                 {
                     return currentSolution;
@@ -907,7 +732,7 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                 var currentAction = currentActions
                     .Where(candidate => string.Equals(candidate.ProviderTypeName, key.ProviderTypeName, StringComparison.Ordinal))
                     .Select(candidate => candidate.Action)
-                    .FirstOrDefault(action => MatchesProviderAction(identity, action, key.ActionTitle));
+                    .FirstOrDefault(action => identity.MatchesProviderAction(action, key.ActionTitle));
                 if (currentAction == null)
                 {
                     return currentSolution;
@@ -917,13 +742,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
                 return applied ?? currentSolution;
             });
     }
-
-    internal static Document? FindDocument(Solution solution, string filePath)
-        => solution.Projects.SelectMany(static project => project.Documents)
-            .FirstOrDefault(d => d.FilePath.MatchesByNormalizedPath(filePath));
-
-    internal static bool MatchesProviderAction(ActionExecutionIdentity identity, CodeAction action, string actionTitle)
-        => identity.MatchesProviderAction(action, actionTitle);
 
     internal async Task<IReadOnlyList<Diagnostic>> GetProviderDiagnosticsForDocumentAsync(Document document, CancellationToken ct)
     {
@@ -1056,33 +874,6 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
         return candidates;
     }
 
-    internal static TextSpan CreateSelectionSpan(int position, int? selectionStart, int? selectionLength)
-        => RefactoringOperationExtensions.CreateSelectionSpan(position, selectionStart, selectionLength);
-
-    internal static string GetCodeFixCategory(Diagnostic diagnostic)
-        => diagnostic.GetCodeFixCategory();
-
-    internal static string BuildProviderCodeFixKey(string providerType, string diagnosticId, string? equivalenceKey, string title)
-        => RefactoringOperationExtensions.BuildProviderCodeFixKey(providerType, diagnosticId, equivalenceKey, title);
-
-    internal static string BuildProviderRefactoringKey(string providerType, string? equivalenceKey, string title)
-        => RefactoringOperationExtensions.BuildProviderRefactoringKey(providerType, equivalenceKey, title);
-
-    internal static bool TryParseProviderCodeFixKey(string key, out ProviderCodeFixKey parsed)
-        => RefactoringOperationExtensions.TryParseProviderCodeFixKey(key, out parsed);
-
-    internal static bool TryParseProviderRefactoringKey(string key, out ProviderRefactoringKey parsed)
-        => RefactoringOperationExtensions.TryParseProviderRefactoringKey(key, out parsed);
-
-    internal static string EncodeKey(string? value)
-        => RefactoringOperationExtensions.EncodeKey(value);
-
-    internal static string DecodeKey(string encoded)
-        => RefactoringOperationExtensions.DecodeKey(encoded);
-
-    internal static async Task<SourceLocation> CreateSourceLocationFromSpanAsync(Document document, TextSpan span, CancellationToken ct)
-        => await document.ToSourceLocationAsync(span, ct).ConfigureAwait(false);
-
     internal async Task<Solution?> TryApplyCodeActionToSolutionAsync(Solution currentSolution, CodeAction action, CancellationToken ct)
     {
         try
@@ -1119,20 +910,5 @@ internal sealed class RefactoringOperationOrchestrator : IRefactoringOperationOr
             resultCode,
             affectedDocumentCount);
     }
-
-    internal static bool IntersectsSelection(TextSpan span, int? selectionStart, int? selectionLength)
-        => span.IntersectsSelection(selectionStart, selectionLength);
-
-    internal static PreviewCodeFixResult CreatePreviewError(string code, string message)
-        => RefactoringOperationExtensions.CreatePreviewError(code, message);
-
-    internal static PreviewCodeFixResult CreatePreviewError(ErrorInfo error)
-        => RefactoringOperationExtensions.CreatePreviewError(error);
-
-    internal static ApplyCodeFixResult CreateApplyError(string fixId, string code, string message)
-        => RefactoringOperationExtensions.CreateApplyError(fixId, code, message);
-
-    internal static string? NormalizeNullable(string? value)
-        => RefactoringOperationExtensions.NormalizeNullable(value);
 
 }

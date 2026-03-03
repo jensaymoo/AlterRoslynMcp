@@ -57,7 +57,7 @@ internal sealed class NavigationCallGraphQueryService
 
             var depth = Math.Max(request.MaxDepth ?? 1, 1);
             var edges = await _callGraphService.GetCallersAsync(symbol, solution, depth, ct).ConfigureAwait(false);
-            return new GetCallersResult(NavigationModelUtilities.CreateDescriptor(symbol), edges);
+            return new GetCallersResult(symbol.ToSymbolDescriptor(), edges);
         }
         catch (OperationCanceledException)
         {
@@ -107,7 +107,7 @@ internal sealed class NavigationCallGraphQueryService
 
             var depth = Math.Max(request.MaxDepth ?? 1, 1);
             var edges = await _callGraphService.GetCalleesAsync(symbol, solution, depth, ct).ConfigureAwait(false);
-            return new GetCalleesResult(NavigationModelUtilities.CreateDescriptor(symbol), edges);
+            return new GetCalleesResult(symbol.ToSymbolDescriptor(), edges);
         }
         catch (OperationCanceledException)
         {
@@ -186,7 +186,7 @@ internal sealed class NavigationCallGraphQueryService
             }
 
             return new GetCallGraphResult(
-                NavigationModelUtilities.CreateDescriptor(symbol),
+                symbol.ToSymbolDescriptor(),
                 orderedEdges,
                 nodes.Count,
                 orderedEdges.Count);

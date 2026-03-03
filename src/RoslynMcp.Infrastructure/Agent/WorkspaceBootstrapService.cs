@@ -70,7 +70,7 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
             .ToArray();
 
         var baseline = await _analysisService.AnalyzeScopeAsync(new AnalyzeScopeRequest(AnalysisScopes.Solution), ct).ConfigureAwait(false);
-        var diagnostics = ToSummary(baseline.Diagnostics);
+        var diagnostics = baseline.Diagnostics.ToDiagnosticsSummary();
 
         var (workspaceVersion, versionError) = await _solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
         if (versionError != null)
@@ -111,13 +111,5 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
         }
 
         return (discovered.SolutionPaths[0], null);
-    }
-
-    private static DiagnosticsSummary ToSummary(IReadOnlyList<DiagnosticItem> diagnostics)
-    {
-        var error = diagnostics.Count(static d => string.Equals(d.Severity, "error", StringComparison.OrdinalIgnoreCase));
-        var warning = diagnostics.Count(static d => string.Equals(d.Severity, "warning", StringComparison.OrdinalIgnoreCase));
-        var info = diagnostics.Count - error - warning;
-        return new DiagnosticsSummary(error, warning, info, diagnostics.Count);
     }
 }

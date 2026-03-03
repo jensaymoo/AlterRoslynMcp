@@ -30,7 +30,7 @@ internal sealed class ListDependenciesHandler
                 Array.Empty<ProjectDependencyEdge>());
         }
 
-        if (!CodeUnderstandingQueryService.TryNormalizeDependencyDirection(request.Direction, out var direction))
+        if (!request.Direction.TryNormalizeDependencyDirection(out var direction))
         {
             return new ListDependenciesResult(
                 Array.Empty<ProjectDependency>(),
@@ -63,7 +63,7 @@ internal sealed class ListDependenciesHandler
                 Array.Empty<ProjectDependencyEdge>());
         }
 
-        var normalizedProjectName = CodeUnderstandingQueryService.NormalizeOptional(request.ProjectName);
+        var normalizedProjectName = request.ProjectName.NormalizeOptional();
         if (normalizedProjectName != null)
         {
             var matchingByName = solution.Projects
@@ -85,8 +85,7 @@ internal sealed class ListDependenciesHandler
             }
         }
 
-        var selectedProjects = CodeUnderstandingQueryService.ResolveProjectSelector(
-            solution,
+        var selectedProjects = solution.ResolveProjectSelector(
             request.ProjectPath,
             request.ProjectName,
             request.ProjectId,

@@ -21,5 +21,5 @@ public sealed class LoadSolutionTools
         CancellationToken cancellationToken,
         [Description("(optional): Absolute path to the `.sln` file. If not provided, the tool will attempt to auto-detect a solution file.")]
         string? solutionHintPath = null)
-        => _workspaceBootstrapService.LoadSolutionAsync(ToolContractMapper.ToLoadSolutionRequest(solutionHintPath), cancellationToken);
+        => _workspaceBootstrapService.LoadSolutionAsync(solutionHintPath.ToLoadSolutionRequest(), cancellationToken);
 }

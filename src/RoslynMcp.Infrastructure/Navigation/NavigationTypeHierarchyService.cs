@@ -88,7 +88,7 @@ internal sealed class NavigationTypeHierarchyService
                 .ConfigureAwait(false);
 
             return new GetTypeHierarchyResult(
-                NavigationModelUtilities.CreateDescriptor(typeSymbol),
+                typeSymbol.ToSymbolDescriptor(),
                 baseTypes,
                 interfaces,
                 derived);
@@ -145,7 +145,7 @@ internal sealed class NavigationTypeHierarchyService
             var depth = Math.Clamp(request.Depth ?? 1, 1, MaxOutlineDepth);
             var members = _typeIntrospectionService.CollectOutlineMembers(symbol, depth);
             var attributes = _typeIntrospectionService.CollectAttributes(symbol);
-            return new GetSymbolOutlineResult(NavigationModelUtilities.CreateDescriptor(symbol), members, attributes);
+            return new GetSymbolOutlineResult(symbol.ToSymbolDescriptor(), members, attributes);
         }
         catch (OperationCanceledException)
         {

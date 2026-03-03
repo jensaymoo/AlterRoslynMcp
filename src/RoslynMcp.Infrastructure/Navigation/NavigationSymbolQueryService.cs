@@ -50,7 +50,7 @@ internal sealed class NavigationSymbolQueryService
                         ("operation", "find-symbol")));
             }
 
-            return new FindSymbolResult(NavigationModelUtilities.CreateDescriptor(symbol));
+            return new FindSymbolResult(symbol.ToSymbolDescriptor());
         }
         catch (OperationCanceledException)
         {
@@ -103,7 +103,7 @@ internal sealed class NavigationSymbolQueryService
                         ("operation", "get_symbol_at_position")));
             }
 
-            return new GetSymbolAtPositionResult(NavigationModelUtilities.CreateDescriptor(symbol));
+            return new GetSymbolAtPositionResult(symbol.ToSymbolDescriptor());
         }
         catch (OperationCanceledException)
         {
@@ -168,7 +168,7 @@ internal sealed class NavigationSymbolQueryService
             return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(), 0);
         }
 
-        if (!NavigationScopeGuards.IsValidSearchScope(request.Scope))
+        if (!request.Scope.IsValidSearchScope())
         {
             return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(),
                 0,
@@ -196,7 +196,7 @@ internal sealed class NavigationSymbolQueryService
                 return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(), 0, error);
             }
 
-            if (!NavigationScopeGuards.PathExistsInScope(solution, request.Scope, request.Path))
+            if (!solution.PathExistsInScope(request.Scope, request.Path))
             {
                 return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(),
                     0,
@@ -268,7 +268,7 @@ internal sealed class NavigationSymbolQueryService
             }
 
             var signature = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-            return new GetSignatureResult(NavigationModelUtilities.CreateDescriptor(symbol), signature);
+            return new GetSignatureResult(symbol.ToSymbolDescriptor(), signature);
         }
         catch (OperationCanceledException)
         {

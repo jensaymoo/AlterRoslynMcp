@@ -40,6 +40,6 @@ public sealed class ListMembersTools
         [Description("Number of results to skip for pagination. Defaults to 0.")]
         int? offset = null)
         => _codeUnderstandingService.ListMembersAsync(
-            ToolContractMapper.ToListMembersRequest(typeSymbolId, path, line, column, kind, accessibility, binding, includeInherited, limit, offset),
+            typeSymbolId.ToListMembersRequest(path, line, column, kind, accessibility, binding, includeInherited, limit, offset),
             cancellationToken);
 }

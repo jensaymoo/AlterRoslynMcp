@@ -22,6 +22,6 @@ public sealed class FindImplementationsTools
         [Description("The stable symbol ID of an interface, abstract class, or abstract/virtual method, obtained from resolve_symbol, list_types, or list_members.")]
         string symbolId)
         => _navigationService.FindImplementationsAsync(
-            ToolContractMapper.ToFindImplementationsRequest(symbolId),
+            symbolId.ToFindImplementationsRequest(),
             cancellationToken);
 }

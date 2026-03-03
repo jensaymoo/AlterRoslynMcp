@@ -1,4 +1,5 @@
 using RoslynMcp.Core.Models.Analysis;
+using RoslynMcp.Infrastructure.Navigation;
 using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure.Analysis;
@@ -20,12 +21,12 @@ internal sealed class AnalysisScopeResolver : IAnalysisScopeResolver
         if (string.Equals(scope, AnalysisScopes.Project, StringComparison.Ordinal))
         {
             return solution.Projects.Where(project =>
-                MatchesByNormalizedPath(project.FilePath, path)
+                project.FilePath.MatchesByNormalizedPath(path)
                 || string.Equals(project.Name, path, StringComparison.OrdinalIgnoreCase));
         }
 
         return solution.Projects.Where(project =>
-            project.Documents.Any(document => MatchesByNormalizedPath(document.FilePath, path)));
+            project.Documents.Any(document => document.FilePath.MatchesByNormalizedPath(path)));
     }
 
     public IReadOnlyList<DiagnosticItem> FilterDiagnosticsByScope(IReadOnlyList<DiagnosticItem> diagnostics, string scope, string? path)
@@ -39,7 +40,7 @@ internal sealed class AnalysisScopeResolver : IAnalysisScopeResolver
 
         if (string.Equals(scope, AnalysisScopes.Document, StringComparison.Ordinal))
         {
-            return diagnostics.Where(diag => MatchesByNormalizedPath(diag.Location.FilePath, path)).ToList();
+            return diagnostics.Where(diag => diag.Location.FilePath.MatchesByNormalizedPath(path)).ToList();
         }
 
         return diagnostics;
@@ -54,30 +55,11 @@ internal sealed class AnalysisScopeResolver : IAnalysisScopeResolver
 
         if (string.Equals(scope, AnalysisScopes.Document, StringComparison.Ordinal))
         {
-            return MatchesByNormalizedPath(document.FilePath, path);
+            return document.FilePath.MatchesByNormalizedPath(path);
         }
 
         var projectPath = document.Project.FilePath;
-        return MatchesByNormalizedPath(projectPath, path)
+        return projectPath.MatchesByNormalizedPath(path)
                || string.Equals(document.Project.Name, path, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool MatchesByNormalizedPath(string? candidatePath, string path)
-    {
-        if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        try
-        {
-            var normalizedCandidate = Path.GetFullPath(candidatePath);
-            var normalizedPath = Path.GetFullPath(path);
-            return string.Equals(normalizedCandidate, normalizedPath, StringComparison.OrdinalIgnoreCase);
-        }
-        catch (Exception)
-        {
-            return string.Equals(candidatePath, path, StringComparison.OrdinalIgnoreCase);
-        }
     }
 }

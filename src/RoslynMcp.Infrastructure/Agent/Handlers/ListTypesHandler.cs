@@ -30,7 +30,7 @@ internal sealed class ListTypesHandler
                 AgentErrorInfo.Normalize(solutionError, "Call load_solution first to select a solution before listing types."));
         }
 
-        if (!CodeUnderstandingQueryService.TryNormalizeTypeKind(request.Kind, out var normalizedKind))
+        if (!request.Kind.TryNormalizeTypeKind(out var normalizedKind))
         {
             return new ListTypesResult(
                 Array.Empty<TypeListEntry>(),
@@ -44,7 +44,7 @@ internal sealed class ListTypesHandler
                     ("expected", "class|record|interface|enum|struct")));
         }
 
-        if (!CodeUnderstandingQueryService.TryNormalizeAccessibility(request.Accessibility, out var normalizedAccessibility))
+        if (!request.Accessibility.TryNormalizeAccessibility(out var normalizedAccessibility))
         {
             return new ListTypesResult(
                 Array.Empty<TypeListEntry>(),
@@ -57,8 +57,7 @@ internal sealed class ListTypesHandler
                     ("provided", request.Accessibility ?? string.Empty)));
         }
 
-        var selectedProjects = CodeUnderstandingQueryService.ResolveProjectSelector(
-            solution,
+        var selectedProjects = solution.ResolveProjectSelector(
             request.ProjectPath,
             request.ProjectName,
             request.ProjectId,
@@ -71,7 +70,7 @@ internal sealed class ListTypesHandler
             return new ListTypesResult(Array.Empty<TypeListEntry>(), 0, selectorError);
         }
 
-        var namespacePrefix = CodeUnderstandingQueryService.NormalizeOptional(request.NamespacePrefix);
+        var namespacePrefix = request.NamespacePrefix.NormalizeOptional();
         var entries = new List<TypeListEntry>();
 
         foreach (var project in selectedProjects)
@@ -132,7 +131,7 @@ internal sealed class ListTypesHandler
             .ThenBy(static item => item.SymbolId, StringComparer.Ordinal)
             .ToArray();
 
-        var (offset, limit) = CodeUnderstandingQueryService.NormalizePaging(request.Offset, request.Limit);
+        var (offset, limit) = request.Offset.NormalizePaging(request.Limit);
         var paged = ordered.Skip(offset).Take(limit).ToArray();
         return new ListTypesResult(paged, ordered.Length);
     }

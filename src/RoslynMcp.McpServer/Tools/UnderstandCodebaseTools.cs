@@ -21,5 +21,5 @@ public sealed class UnderstandCodebaseTools
         CancellationToken cancellationToken,
         [Description("Analysis depth. quick for fast results, standard for balanced output, deep for thorough analysis. Defaults to standard.")]
         string? profile = null)
-        => _codeUnderstandingService.UnderstandCodebaseAsync(ToolContractMapper.ToUnderstandCodebaseRequest(profile), cancellationToken);
+        => _codeUnderstandingService.UnderstandCodebaseAsync(profile.ToUnderstandCodebaseRequest(), cancellationToken);
 }

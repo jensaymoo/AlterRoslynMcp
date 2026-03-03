@@ -4,9 +4,9 @@ using RoslynMcp.Core.Models.Refactoring;
 
 namespace RoslynMcp.Infrastructure.Refactoring;
 
-internal static class RefactoringRequestValidator
+internal static class RefactoringRequestExtensions
 {
-    public static GetRefactoringsAtPositionResult? ValidateGetRefactoringsAtPosition(GetRefactoringsAtPositionRequest request)
+    public static GetRefactoringsAtPositionResult? ValidateGetRefactoringsAtPosition(this GetRefactoringsAtPositionRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Path) || request.Line < 1 || request.Column < 1)
         {
@@ -30,9 +30,9 @@ internal static class RefactoringRequestValidator
         return null;
     }
 
-    public static GetCodeFixesResult? ValidateGetCodeFixes(GetCodeFixesRequest request)
+    public static GetCodeFixesResult? ValidateGetCodeFixes(this GetCodeFixesRequest request)
     {
-        if (!IsValidScope(request.Scope))
+        if (!request.Scope.IsValidRefactoringScope())
         {
             return new GetCodeFixesResult(Array.Empty<CodeFixDescriptor>(),
                 CreateError(ErrorCodes.InvalidRequest,
@@ -53,9 +53,9 @@ internal static class RefactoringRequestValidator
         return null;
     }
 
-    public static ExecuteCleanupResult? ValidateExecuteCleanup(ExecuteCleanupRequest request)
+    public static ExecuteCleanupResult? ValidateExecuteCleanup(this ExecuteCleanupRequest request)
     {
-        if (!IsValidScope(request.Scope))
+        if (!request.Scope.IsValidRefactoringScope())
         {
             return new ExecuteCleanupResult(
                 request.Scope,
@@ -111,7 +111,7 @@ internal static class RefactoringRequestValidator
         return null;
     }
 
-    private static bool IsValidScope(string scope)
+    private static bool IsValidRefactoringScope(this string scope)
         => string.Equals(scope, "document", StringComparison.Ordinal)
            || string.Equals(scope, "project", StringComparison.Ordinal)
            || string.Equals(scope, "solution", StringComparison.Ordinal);

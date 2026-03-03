@@ -26,6 +26,6 @@ public sealed class FindUsagesTools
         [Description("Required when scope=document: the file path to search within.")]
         string? path = null)
         => _navigationService.FindReferencesScopedAsync(
-            ToolContractMapper.ToFindReferencesScopedRequest(symbolId, scope, path),
+            symbolId.ToFindReferencesScopedRequest(scope, path),
             cancellationToken);
 }

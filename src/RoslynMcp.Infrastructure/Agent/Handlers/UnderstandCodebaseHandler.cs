@@ -19,7 +19,7 @@ internal sealed class UnderstandCodebaseHandler
     public async Task<UnderstandCodebaseResult> HandleAsync(UnderstandCodebaseRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var profile = CodeUnderstandingQueryService.NormalizeProfile(request.Profile);
+        var profile = request.Profile.NormalizeProfile();
 
         var (solution, error) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
             "Call load_solution first to select a solution before understanding the codebase.",

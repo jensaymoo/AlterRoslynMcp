@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CodeActions;
+using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using RoslynMcp.Core.Models.Common;
 using RoslynMcp.Core.Models.Refactoring;
@@ -164,6 +165,49 @@ internal static class RefactoringOperationExtensions
         return keys;
     }
 
+    public static async Task<IReadOnlyList<SourceLocation>> CollectAffectedLocationsAsync(this ISymbol symbol, Solution solution, CancellationToken ct)
+    {
+        var references = await SymbolFinder.FindReferencesAsync(symbol, solution, ct).ConfigureAwait(false);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var locations = new List<SourceLocation>();
+
+        foreach (var reference in references)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            foreach (var location in reference.Locations)
+            {
+                if (!location.Location.IsInSource)
+                {
+                    continue;
+                }
+
+                var sourceLocation = location.Location.ToSourceLocation();
+                var key = sourceLocation.GetLocationKey();
+                if (seen.Add(key))
+                {
+                    locations.Add(sourceLocation);
+                }
+            }
+        }
+
+        foreach (var location in symbol.Locations.Where(static l => l.IsInSource))
+        {
+            var sourceLocation = location.ToSourceLocation();
+            var key = sourceLocation.GetLocationKey();
+            if (seen.Add(key))
+            {
+                locations.Add(sourceLocation);
+            }
+        }
+
+        return locations
+            .OrderBy(loc => loc.FilePath, StringComparer.Ordinal)
+            .ThenBy(loc => loc.Line)
+            .ThenBy(loc => loc.Column)
+            .ToList();
+    }
+
     public static bool WouldConflict(this ISymbol symbol, string newName)
     {
         if (string.Equals(symbol.Name, newName, StringComparison.Ordinal))
@@ -303,7 +347,7 @@ internal static class RefactoringOperationExtensions
 
     // === TextSpan Extensions ===
 
-    public static TextSpan CreateSelectionSpan(int position, int? selectionStart, int? selectionLength)
+    public static TextSpan CreateSelectionSpan(this int position, int? selectionStart, int? selectionLength)
     {
         if (selectionStart.HasValue && selectionLength.HasValue)
         {
@@ -346,13 +390,13 @@ internal static class RefactoringOperationExtensions
 
     // === FixId Extensions ===
 
-    public static string BuildFixId(int workspaceVersion, string diagnosticId, int spanStart, int spanLength, string filePath)
+    public static string BuildFixId(this int workspaceVersion, string diagnosticId, int spanStart, int spanLength, string filePath)
     {
         var encodedPath = Convert.ToBase64String(Encoding.UTF8.GetBytes(filePath));
         return string.Join('|', "v1", workspaceVersion, RefactoringOperationOrchestrator.SupportedFixOperation, diagnosticId, spanStart, spanLength, encodedPath);
     }
 
-    public static ParsedFixId? ParseFixId(string fixId)
+    public static ParsedFixId? ParseFixId(this string fixId)
     {
         if (string.IsNullOrWhiteSpace(fixId))
         {
@@ -389,13 +433,13 @@ internal static class RefactoringOperationExtensions
 
     // === Provider Key Extensions ===
 
-    public static string BuildProviderCodeFixKey(string providerType, string diagnosticId, string? equivalenceKey, string title)
+    public static string BuildProviderCodeFixKey(this string providerType, string diagnosticId, string? equivalenceKey, string title)
         => string.Join('|', "cf", providerType.EncodeKey(), diagnosticId.EncodeKey(), equivalenceKey.EncodeKey(), title.EncodeKey());
 
-    public static string BuildProviderRefactoringKey(string providerType, string? equivalenceKey, string title)
+    public static string BuildProviderRefactoringKey(this string providerType, string? equivalenceKey, string title)
         => string.Join('|', "rf", providerType.EncodeKey(), equivalenceKey.EncodeKey(), title.EncodeKey());
 
-    public static bool TryParseProviderCodeFixKey(string key, out ProviderCodeFixKey parsed)
+    public static bool TryParseProviderCodeFixKey(this string key, out ProviderCodeFixKey parsed)
     {
         parsed = default;
         if (string.IsNullOrWhiteSpace(key))
@@ -420,7 +464,7 @@ internal static class RefactoringOperationExtensions
         return true;
     }
 
-    public static bool TryParseProviderRefactoringKey(string key, out ProviderRefactoringKey parsed)
+    public static bool TryParseProviderRefactoringKey(this string key, out ProviderRefactoringKey parsed)
     {
         parsed = default;
         if (string.IsNullOrWhiteSpace(key))
@@ -446,7 +490,7 @@ internal static class RefactoringOperationExtensions
 
     // === Changed Files Extensions ===
 
-    public static async Task<IReadOnlyList<ChangedFilePreview>> CollectChangedFilesAsync(Solution original, Solution updated, CancellationToken ct)
+    public static async Task<IReadOnlyList<ChangedFilePreview>> CollectChangedFilesAsync(this Solution original, Solution updated, CancellationToken ct)
     {
         var changedDocumentIds = updated.GetChanges(original)
             .GetProjectChanges()

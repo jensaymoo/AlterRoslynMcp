@@ -36,6 +36,6 @@ public sealed class ResolveSymbolTools
         [Description("Required when using qualifiedName — project ID from load_solution that contains the symbol.")]
         string? projectId = null)
         => _codeUnderstandingService.ResolveSymbolAsync(
-            ToolContractMapper.ToResolveSymbolRequest(symbolId, path, line, column, qualifiedName, projectPath, projectName, projectId),
+            symbolId.ToResolveSymbolRequest(path, line, column, qualifiedName, projectPath, projectName, projectId),
             cancellationToken);
 }

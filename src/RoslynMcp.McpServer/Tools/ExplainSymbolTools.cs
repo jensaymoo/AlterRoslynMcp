@@ -28,6 +28,6 @@ public sealed class ExplainSymbolTools
         [Description("Column number (1-based) pointing to the symbol in the source file.")]
         int? column = null)
         => _codeUnderstandingService.ExplainSymbolAsync(
-            ToolContractMapper.ToExplainSymbolRequest(symbolId, path, line, column),
+            symbolId.ToExplainSymbolRequest(path, line, column),
             cancellationToken);
 }

@@ -32,6 +32,6 @@ public sealed class TraceCallFlowTools
         [Description("How many levels of the call chain to traverse. Defaults to 2. Use larger values for deeper analysis, or null for unlimited depth.")]
         int? depth = null)
         => _flowTraceService.TraceFlowAsync(
-            ToolContractMapper.ToTraceFlowRequest(symbolId, path, line, column, direction, depth),
+            symbolId.ToTraceFlowRequest(path, line, column, direction, depth),
             cancellationToken);
 }

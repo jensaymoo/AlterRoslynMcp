@@ -80,8 +80,7 @@ internal sealed class ResolveSymbolHandler
 
         if (!string.IsNullOrWhiteSpace(request.QualifiedName))
         {
-            var selectedProjects = CodeUnderstandingQueryService.ResolveProjectSelector(
-                solution,
+            var selectedProjects = solution.ResolveProjectSelector(
                 request.ProjectPath,
                 request.ProjectName,
                 request.ProjectId,
@@ -94,7 +93,7 @@ internal sealed class ResolveSymbolHandler
                 return new ResolveSymbolResult(null, false, Array.Empty<ResolveSymbolCandidate>(), selectorError);
             }
 
-            var candidates = await CodeUnderstandingQueryService.ResolveByQualifiedNameAsync(request.QualifiedName!, selectedProjects, ct).ConfigureAwait(false);
+            var candidates = await request.QualifiedName!.ResolveByQualifiedNameAsync(selectedProjects, ct).ConfigureAwait(false);
             if (candidates.Length == 0)
             {
                 return new ResolveSymbolResult(

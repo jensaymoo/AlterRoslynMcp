@@ -19,13 +19,13 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
 
     public IReadOnlyList<SymbolDescriptor> CollectBaseTypes(INamedTypeSymbol typeSymbol, bool includeTransitive)
         => CollectBaseTypeSymbols(typeSymbol, includeTransitive)
-            .Select(NavigationModelUtilities.CreateDescriptor)
+            .Select(static symbol => symbol.ToSymbolDescriptor())
             .OrderBy(static descriptor => descriptor, SymbolDescriptorComparer.Instance)
             .ToArray();
 
     public IReadOnlyList<SymbolDescriptor> CollectImplementedInterfaces(INamedTypeSymbol typeSymbol, bool includeTransitive)
         => CollectImplementedInterfaceSymbols(typeSymbol, includeTransitive)
-            .Select(NavigationModelUtilities.CreateDescriptor)
+            .Select(static symbol => symbol.ToSymbolDescriptor())
             .OrderBy(static descriptor => descriptor, SymbolDescriptorComparer.Instance)
             .ToArray();
 
@@ -100,7 +100,7 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
                     member.DeclaredAccessibility.ToString(),
                     member.IsStatic);
 
-                members[NavigationModelUtilities.GetOutlineMemberKey(outline)] = outline;
+                members[outline.GetOutlineMemberKey()] = outline;
 
                 if (level < depth && member is INamedTypeSymbol nestedType)
                 {
@@ -183,7 +183,7 @@ internal sealed class TypeIntrospectionService : ITypeIntrospectionService
 
             var normalized = symbol.OriginalDefinition;
             var id = SymbolIdentity.CreateId(normalized);
-            unique[id] = NavigationModelUtilities.CreateDescriptor(normalized);
+            unique[id] = normalized.ToSymbolDescriptor();
         }
     }
 }

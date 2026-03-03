@@ -37,7 +37,7 @@ internal sealed class CallGraphService : ICallGraphService
             var callers = await BuildCallGraphAsync(root, solution, maxDepth, callers: true, ct).ConfigureAwait(false);
             foreach (var edge in callers)
             {
-                edgeMap[NavigationModelUtilities.GetEdgeKey(edge)] = edge;
+                edgeMap[edge.GetEdgeKey()] = edge;
             }
         }
 
@@ -46,7 +46,7 @@ internal sealed class CallGraphService : ICallGraphService
             var callees = await BuildCallGraphAsync(root, solution, maxDepth, callers: false, ct).ConfigureAwait(false);
             foreach (var edge in callees)
             {
-                edgeMap[NavigationModelUtilities.GetEdgeKey(edge)] = edge;
+                edgeMap[edge.GetEdgeKey()] = edge;
             }
         }
 
@@ -90,9 +90,9 @@ internal sealed class CallGraphService : ICallGraphService
                             continue;
                         }
 
-                        var source = NavigationModelUtilities.CreateSourceLocation(location);
+                        var source = location.ToSourceLocation();
                         var edge = new CallEdge(callerId, toId, source);
-                        if (edgeKeys.Add(NavigationModelUtilities.GetEdgeKey(edge)))
+                        if (edgeKeys.Add(edge.GetEdgeKey()))
                         {
                             edges.Add(edge);
                         }
@@ -112,8 +112,8 @@ internal sealed class CallGraphService : ICallGraphService
                     var normalizedCallee = callee.OriginalDefinition ?? callee;
                     var fromId = SymbolIdentity.CreateId(current.OriginalDefinition ?? current);
                     var toId = SymbolIdentity.CreateId(normalizedCallee);
-                    var edge = new CallEdge(fromId, toId, NavigationModelUtilities.CreateSourceLocation(location));
-                    if (edgeKeys.Add(NavigationModelUtilities.GetEdgeKey(edge)))
+                    var edge = new CallEdge(fromId, toId, location.ToSourceLocation());
+                    if (edgeKeys.Add(edge.GetEdgeKey()))
                     {
                         edges.Add(edge);
                     }

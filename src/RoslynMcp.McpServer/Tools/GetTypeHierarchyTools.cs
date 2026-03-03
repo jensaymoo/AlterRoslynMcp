@@ -26,6 +26,6 @@ public sealed class GetTypeHierarchyTools
         [Description("Maximum number of derived types to return. Defaults to 200. Higher values may impact performance.")]
         int maxDerived = 200)
         => _navigationService.GetTypeHierarchyAsync(
-            ToolContractMapper.ToGetTypeHierarchyRequest(symbolId, includeTransitive, maxDerived),
+            symbolId.ToGetTypeHierarchyRequest(includeTransitive, maxDerived),
             cancellationToken);
 }

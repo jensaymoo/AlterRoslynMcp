@@ -27,7 +27,7 @@ internal sealed class ReferenceSearchService : IReferenceSearchService
         if (solution.Projects
             .SelectMany(static project => project.Documents)
             .Any(document => string.Equals(document.FilePath, path, StringComparison.OrdinalIgnoreCase) ||
-                             NavigationModelUtilities.MatchesByNormalizedPath(document.FilePath, path)))
+                             document.FilePath.MatchesByNormalizedPath(path)))
         {
             return null;
         }
@@ -68,7 +68,7 @@ internal sealed class ReferenceSearchService : IReferenceSearchService
         var uniqueDescriptors = new Dictionary<string, SymbolDescriptor>(StringComparer.Ordinal);
         foreach (var implementation in implementations)
         {
-            var descriptor = NavigationModelUtilities.CreateDescriptor(implementation);
+            var descriptor = implementation.ToSymbolDescriptor();
             uniqueDescriptors[descriptor.SymbolId] = descriptor;
         }
 
@@ -95,8 +95,8 @@ internal sealed class ReferenceSearchService : IReferenceSearchService
                     continue;
                 }
 
-                var sourceLocation = NavigationModelUtilities.CreateSourceLocation(location.Location);
-                if (uniqueLocations.Add(NavigationModelUtilities.GetLocationKey(sourceLocation)))
+                var sourceLocation = location.Location.ToSourceLocation();
+                if (uniqueLocations.Add(sourceLocation.GetLocationKey()))
                 {
                     locations.Add(sourceLocation);
                 }
@@ -125,7 +125,7 @@ internal sealed class ReferenceSearchService : IReferenceSearchService
 
         return string.Equals(scope, ReferenceScopes.Document, StringComparison.Ordinal) &&
                !string.IsNullOrWhiteSpace(path) &&
-               (string.Equals(document.FilePath, path, StringComparison.OrdinalIgnoreCase) ||
-                NavigationModelUtilities.MatchesByNormalizedPath(document.FilePath, path));
+                (string.Equals(document.FilePath, path, StringComparison.OrdinalIgnoreCase) ||
+                 document.FilePath.MatchesByNormalizedPath(path));
     }
 }

@@ -18,7 +18,7 @@ public sealed class FlowTraceService : IFlowTraceService
     public async Task<TraceFlowResult> TraceFlowAsync(TraceFlowRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var directionValidation = NormalizeDirection(request.Direction);
+        var directionValidation = request.Direction.NormalizeFlowDirection();
         if (directionValidation.Error != null)
         {
             return new TraceFlowResult(
@@ -96,7 +96,7 @@ public sealed class FlowTraceService : IFlowTraceService
         }
 
         var transitions = edges
-            .GroupBy(edge => (From: ExtractProject(edge.FromSymbolId), To: ExtractProject(edge.ToSymbolId)))
+            .GroupBy(edge => (From: edge.FromSymbolId.ExtractProjectFromSymbolId(), To: edge.ToSymbolId.ExtractProjectFromSymbolId()))
             .OrderByDescending(static group => group.Count())
             .ThenBy(static group => group.Key.From, StringComparer.Ordinal)
             .ThenBy(static group => group.Key.To, StringComparer.Ordinal)
@@ -127,29 +127,5 @@ public sealed class FlowTraceService : IFlowTraceService
                 ErrorCodes.InvalidInput,
                 "Provide symbolId or path/line/column.",
                 "Call trace_flow with a symbolId or source position."));
-    }
-
-    private static (string Direction, ErrorInfo? Error) NormalizeDirection(string? direction)
-    {
-        var normalized = string.IsNullOrWhiteSpace(direction) ? "both" : direction.Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "upstream" or "up" => ("upstream", null),
-            "downstream" or "down" => ("downstream", null),
-            "both" => ("both", null),
-            _ => ("both", AgentErrorInfo.Create(
-                ErrorCodes.InvalidInput,
-                "direction must be one of: upstream, downstream, both.",
-                "Retry trace_flow with direction set to upstream, downstream, or both.",
-                ("field", "direction"),
-                ("provided", direction ?? string.Empty),
-                ("expected", "upstream|downstream|both")))
-        };
-    }
-
-    private static string ExtractProject(string symbolId)
-    {
-        var separator = symbolId.IndexOf(':');
-        return separator > 0 ? symbolId[..separator] : "unknown";
     }
 }

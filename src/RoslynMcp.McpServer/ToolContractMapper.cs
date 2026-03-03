@@ -5,7 +5,7 @@ using RoslynMcp.Core.Models.Navigation;
 
 namespace RoslynMcp.McpServer;
 
-internal static class ToolContractMapper
+internal static class ToolContractMapperExtensions
 {
     private const int MinimumDepth = 1;
     private const int MaximumOutlineDepth = 3;
@@ -54,13 +54,13 @@ internal static class ToolContractMapper
     public static FindReferencesRequest ToFindReferencesRequest(string? symbolId)
         => new(NormalizeSymbolId(symbolId));
 
-    public static FindReferencesScopedRequest ToFindReferencesScopedRequest(string? symbolId, string? scope, string? path)
+    public static FindReferencesScopedRequest ToFindReferencesScopedRequest(this string? symbolId, string? scope, string? path)
         => new(NormalizeSymbolId(symbolId), NormalizeScope(scope), NormalizeOptionalString(path));
 
-    public static FindImplementationsRequest ToFindImplementationsRequest(string? symbolId)
+    public static FindImplementationsRequest ToFindImplementationsRequest(this string? symbolId)
         => new(NormalizeSymbolId(symbolId));
 
-    public static GetTypeHierarchyRequest ToGetTypeHierarchyRequest(string? symbolId, bool? includeTransitive, int? maxDerived)
+    public static GetTypeHierarchyRequest ToGetTypeHierarchyRequest(this string? symbolId, bool? includeTransitive, int? maxDerived)
         => new(NormalizeSymbolId(symbolId), includeTransitive ?? true, NormalizeNonNegative(maxDerived) ?? DefaultMaxDerived);
 
     public static GetSymbolOutlineRequest ToGetSymbolOutlineRequest(string? symbolId, int? depth)
@@ -84,13 +84,13 @@ internal static class ToolContractMapper
     public static GetCodeMetricsRequest ToGetCodeMetricsRequest()
         => new();
 
-    public static LoadSolutionRequest ToLoadSolutionRequest(string? solutionHintPath)
+    public static LoadSolutionRequest ToLoadSolutionRequest(this string? solutionHintPath)
         => new(NormalizeOptionalString(solutionHintPath));
 
-    public static UnderstandCodebaseRequest ToUnderstandCodebaseRequest(string? profile)
+    public static UnderstandCodebaseRequest ToUnderstandCodebaseRequest(this string? profile)
         => new(NormalizeOptionalString(profile));
 
-    public static ExplainSymbolRequest ToExplainSymbolRequest(string? symbolId, string? path, int? line, int? column)
+    public static ExplainSymbolRequest ToExplainSymbolRequest(this string? symbolId, string? path, int? line, int? column)
         => new(
             NormalizeOptionalString(symbolId),
             NormalizeOptionalString(path),
@@ -98,7 +98,7 @@ internal static class ToolContractMapper
             column.HasValue ? NormalizePosition(column.Value) : null);
 
     public static ListTypesRequest ToListTypesRequest(
-        string? projectPath,
+        this string? projectPath,
         string? projectName,
         string? projectId,
         string? namespacePrefix,
@@ -117,7 +117,7 @@ internal static class ToolContractMapper
             NormalizeNonNegative(offset));
 
     public static ListMembersRequest ToListMembersRequest(
-        string? typeSymbolId,
+        this string? typeSymbolId,
         string? path,
         int? line,
         int? column,
@@ -140,7 +140,7 @@ internal static class ToolContractMapper
             NormalizeNonNegative(offset));
 
     public static ResolveSymbolRequest ToResolveSymbolRequest(
-        string? symbolId,
+        this string? symbolId,
         string? path,
         int? line,
         int? column,
@@ -158,7 +158,7 @@ internal static class ToolContractMapper
             NormalizeOptionalString(projectName),
             NormalizeOptionalString(projectId));
 
-    public static TraceFlowRequest ToTraceFlowRequest(string? symbolId, string? path, int? line, int? column, string? direction, int? depth)
+    public static TraceFlowRequest ToTraceFlowRequest(this string? symbolId, string? path, int? line, int? column, string? direction, int? depth)
         => new(
             NormalizeOptionalString(symbolId),
             NormalizeOptionalString(path),
@@ -168,12 +168,12 @@ internal static class ToolContractMapper
             NormalizeNonNegative(depth));
 
     public static FindCodeSmellsRequest ToFindCodeSmellsRequest(
-        string? path)
+        this string? path)
         => new(
             NormalizeString(path));
 
     public static ListDependenciesRequest ToListDependenciesRequest(
-        string? projectPath,
+        this string? projectPath,
         string? projectName,
         string? projectId,
         string? direction)

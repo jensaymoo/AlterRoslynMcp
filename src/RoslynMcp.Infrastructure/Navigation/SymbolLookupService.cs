@@ -92,7 +92,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
         }
 
         var ordered = candidates
-            .Select(NavigationModelUtilities.CreateDescriptor)
+            .Select(static symbol => symbol.ToSymbolDescriptor())
             .OrderBy(static descriptor => descriptor, SymbolDescriptorComparer.Instance)
             .ToList();
 
@@ -110,7 +110,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
 
         var document = solution.Projects
             .SelectMany(static p => p.Documents)
-            .FirstOrDefault(d => NavigationModelUtilities.MatchesByNormalizedPath(d.FilePath, path));
+            .FirstOrDefault(d => d.FilePath.MatchesByNormalizedPath(path));
         if (document == null)
         {
             return null;
@@ -201,7 +201,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
         }
 
         var ordered = candidates
-            .Select(NavigationModelUtilities.CreateDescriptor)
+            .Select(static symbol => symbol.ToSymbolDescriptor())
             .OrderBy(static descriptor => descriptor, SymbolDescriptorComparer.Instance)
             .ToList();
 
@@ -220,12 +220,12 @@ internal sealed class SymbolLookupService : ISymbolLookupService
         if (string.Equals(scope, SymbolSearchScopes.Project, StringComparison.Ordinal))
         {
             return solution.Projects.Where(project =>
-                NavigationModelUtilities.MatchesByNormalizedPath(project.FilePath, path) ||
+                project.FilePath.MatchesByNormalizedPath(path) ||
                 string.Equals(project.Name, path, StringComparison.OrdinalIgnoreCase));
         }
 
         return solution.Projects.Where(project =>
-            project.Documents.Any(d => NavigationModelUtilities.MatchesByNormalizedPath(d.FilePath, path)));
+            project.Documents.Any(d => d.FilePath.MatchesByNormalizedPath(path)));
     }
 
     private static bool MatchesPathScope(ISymbol symbol, string scope, string? path)
@@ -243,7 +243,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
 
         if (string.Equals(scope, SymbolSearchScopes.Document, StringComparison.Ordinal))
         {
-            return locations.Any(location => NavigationModelUtilities.MatchesByNormalizedPath(location.SourceTree?.FilePath, path));
+            return locations.Any(location => location.SourceTree?.FilePath.MatchesByNormalizedPath(path) == true);
         }
 
         return locations.Any(location =>
@@ -263,7 +263,7 @@ internal sealed class SymbolLookupService : ISymbolLookupService
             }
             catch (Exception)
             {
-                return NavigationModelUtilities.MatchesByNormalizedPath(sourcePath, path);
+                return sourcePath.MatchesByNormalizedPath(path);
             }
         });
     }
