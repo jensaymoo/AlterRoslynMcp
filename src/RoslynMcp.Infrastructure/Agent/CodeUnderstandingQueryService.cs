@@ -8,7 +8,6 @@ using RoslynMcp.Infrastructure.Navigation;
 using RoslynMcp.Infrastructure.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
-using System.Collections.Immutable;
 
 namespace RoslynMcp.Infrastructure.Agent;
 
@@ -98,7 +97,7 @@ internal sealed class CodeUnderstandingQueryService
 
             var symbol = await _symbolLookupService.ResolveSymbolAsync(metric.SymbolId, solution, ct).ConfigureAwait(false);
             var displayName = symbol?.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) ?? metric.SymbolId;
-            var (filePath, startLine, _, endLine, _) = GetSourceSpan(symbol);
+            var (filePath, startLine, _, endLine, _) = symbol.GetSourceSpan();
             var reason = $"complexity={complexity}, lines={lineCount}";
             if (string.IsNullOrWhiteSpace(filePath))
             {
@@ -233,135 +232,12 @@ internal sealed class CodeUnderstandingQueryService
         return (typeSymbol, null);
     }
 
-    public static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol root)
-    {
-        var stack = new Stack<INamespaceOrTypeSymbol>();
-        foreach (var member in root.GetMembers().OrderBy(static m => m.Name, StringComparer.Ordinal))
-        {
-            stack.Push(member);
-        }
-
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            if (current is INamedTypeSymbol namedType)
-            {
-                yield return namedType;
-                foreach (var nested in namedType.GetTypeMembers().OrderByDescending(static m => m.Name, StringComparer.Ordinal))
-                {
-                    stack.Push(nested);
-                }
-
-                continue;
-            }
-
-            if (current is INamespaceSymbol ns)
-            {
-                foreach (var member in ns.GetMembers().OrderByDescending(static m => m.Name, StringComparer.Ordinal))
-                {
-                    stack.Push(member);
-                }
-            }
-        }
-    }
-
-    public static ImmutableArray<ISymbol> CollectMembersWithInheritance(INamedTypeSymbol type)
-    {
-        var builder = ImmutableArray.CreateBuilder<ISymbol>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        static IEnumerable<INamedTypeSymbol> Traverse(INamedTypeSymbol current)
-        {
-            yield return current;
-
-            var baseType = current.BaseType;
-            while (baseType != null)
-            {
-                yield return baseType;
-                baseType = baseType.BaseType;
-            }
-
-            foreach (var iface in current.AllInterfaces.OrderBy(static i => i.ToDisplayString(), StringComparer.Ordinal))
-            {
-                yield return iface;
-            }
-        }
-
-        foreach (var declaringType in Traverse(type))
-        {
-            foreach (var member in declaringType.GetMembers())
-            {
-                var kind = ToMemberKind(member);
-                if (kind == null)
-                {
-                    continue;
-                }
-
-                var key = SymbolIdentity.CreateId(member);
-                if (seen.Add(key))
-                {
-                    builder.Add(member);
-                }
-            }
-        }
-
-        return builder.ToImmutable();
-    }
-
-    public static MemberListEntry? ToMemberEntry(
-        ISymbol member,
-        string? normalizedKind,
-        string? normalizedAccessibility,
-        string? normalizedBinding)
-    {
-        var memberKind = ToMemberKind(member);
-        if (memberKind == null)
-        {
-            return null;
-        }
-
-        if (normalizedKind != null && !string.Equals(memberKind, normalizedKind, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var accessibility = NormalizeAccessibility(member.DeclaredAccessibility);
-        if (normalizedAccessibility != null && !string.Equals(accessibility, normalizedAccessibility, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        if (normalizedBinding != null)
-        {
-            var isStatic = member.IsStatic;
-            if ((string.Equals(normalizedBinding, "static", StringComparison.Ordinal) && !isStatic)
-                || (string.Equals(normalizedBinding, "instance", StringComparison.Ordinal) && isStatic))
-            {
-                return null;
-            }
-        }
-
-        var (filePath, line, column) = GetDeclarationPosition(member);
-        return new MemberListEntry(
-            member.Kind == SymbolKind.Method && member is IMethodSymbol { MethodKind: MethodKind.Constructor } constructor
-                ? constructor.ContainingType.Name
-                : member.Name,
-            SymbolIdentity.CreateId(member),
-            memberKind,
-            member.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-            filePath,
-            line,
-            column,
-            accessibility,
-            member.IsStatic);
-    }
-
     public static async Task<ResolveSymbolCandidate[]> ResolveByQualifiedNameAsync(
         string qualifiedName,
         IReadOnlyList<Project> projects,
         CancellationToken ct)
     {
-        var normalizedQualifiedName = NormalizeQualifiedName(qualifiedName);
+        var normalizedQualifiedName = qualifiedName.NormalizeQualifiedName();
         var shortName = normalizedQualifiedName.Split('.').LastOrDefault();
         if (string.IsNullOrWhiteSpace(shortName))
         {
@@ -396,14 +272,14 @@ internal sealed class CodeUnderstandingQueryService
         }
 
         var strictMatches = candidates
-            .Where(match => MatchesQualifiedName(match.Symbol, normalizedQualifiedName))
+            .Where(match => match.Symbol.MatchesQualifiedName(normalizedQualifiedName))
             .ToArray();
         if (strictMatches.Length > 0)
         {
             return OrderResolveSymbolCandidates(strictMatches, shortName);
         }
 
-        if (!LooksLikeShortNameQuery(normalizedQualifiedName))
+        if (!normalizedQualifiedName.LooksLikeShortNameQuery())
         {
             return Array.Empty<ResolveSymbolCandidate>();
         }
@@ -434,7 +310,7 @@ internal sealed class CodeUnderstandingQueryService
             .Select(match =>
             {
                 var symbolId = SymbolIdentity.CreateId(match.Symbol);
-                var (filePath, line, column) = GetDeclarationPosition(match.Symbol);
+                var (filePath, line, column) = match.Symbol.GetDeclarationPosition();
                 return new ResolveSymbolCandidate(
                     symbolId,
                     match.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
@@ -449,33 +325,6 @@ internal sealed class CodeUnderstandingQueryService
 
     public static int GetResolveSymbolKindPriority(ISymbol symbol)
         => symbol is INamedTypeSymbol ? 0 : 1;
-
-    public static bool LooksLikeShortNameQuery(string normalizedQualifiedName)
-        => normalizedQualifiedName.IndexOf('.') < 0;
-
-    public static bool MatchesQualifiedName(ISymbol symbol, string normalizedQualifiedName)
-    {
-        var full = NormalizeQualifiedName(symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-        if (string.Equals(full, normalizedQualifiedName, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        var csharpError = NormalizeQualifiedName(symbol.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat));
-        return string.Equals(csharpError, normalizedQualifiedName, StringComparison.Ordinal);
-    }
-
-    public static ResolvedSymbolSummary ToResolvedSymbol(ISymbol symbol)
-    {
-        var (filePath, line, column) = GetDeclarationPosition(symbol);
-        return new ResolvedSymbolSummary(
-            SymbolIdentity.CreateId(symbol),
-            symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-            symbol.Kind.ToString(),
-            filePath,
-            line,
-            column);
-    }
 
     public static IReadOnlyList<Project> ResolveProjectSelector(
         Solution solution,
@@ -549,80 +398,6 @@ internal sealed class CodeUnderstandingQueryService
         return matches;
     }
 
-    public static string? ToTypeKind(INamedTypeSymbol type)
-    {
-        if (type.IsRecord)
-        {
-            return "record";
-        }
-
-        return type.TypeKind switch
-        {
-            TypeKind.Class => "class",
-            TypeKind.Interface => "interface",
-            TypeKind.Enum => "enum",
-            TypeKind.Struct => "struct",
-            _ => null
-        };
-    }
-
-    public static string? ToMemberKind(ISymbol symbol)
-    {
-        return symbol switch
-        {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } => "ctor",
-            IMethodSymbol method when method.MethodKind == MethodKind.Ordinary || method.MethodKind == MethodKind.UserDefinedOperator
-                || method.MethodKind == MethodKind.Conversion || method.MethodKind == MethodKind.ReducedExtension
-                || method.MethodKind == MethodKind.DelegateInvoke => "method",
-            IPropertySymbol => "property",
-            IFieldSymbol field when !field.IsImplicitlyDeclared => "field",
-            IEventSymbol => "event",
-            _ => null
-        };
-    }
-
-    public static bool IsPartial(INamedTypeSymbol symbol)
-    {
-        foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
-        {
-            var syntax = syntaxReference.GetSyntax();
-            if (syntax is Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax typeDeclaration
-                && typeDeclaration.Modifiers.Any(modifier => modifier.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PartialKeyword)))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public static (string FilePath, int? Line, int? Column) GetDeclarationPosition(ISymbol symbol)
-    {
-        var location = symbol.Locations.FirstOrDefault(static l => l.IsInSource);
-        if (location == null)
-        {
-            return (string.Empty, null, null);
-        }
-
-        var span = location.GetLineSpan();
-        var start = span.StartLinePosition;
-        return (span.Path ?? string.Empty, start.Line + 1, start.Character + 1);
-    }
-
-    public static (string FilePath, int? StartLine, int? StartColumn, int? EndLine, int? EndColumn) GetSourceSpan(ISymbol? symbol)
-    {
-        var location = symbol?.Locations.FirstOrDefault(static l => l.IsInSource);
-        if (location == null)
-        {
-            return (string.Empty, null, null, null, null);
-        }
-
-        var span = location.GetLineSpan();
-        var start = span.StartLinePosition;
-        var end = span.EndLinePosition;
-        return (span.Path ?? string.Empty, start.Line + 1, start.Character + 1, end.Line + 1, end.Character + 1);
-    }
-
     public static string NormalizeProfile(string? profile)
     {
         var normalized = string.IsNullOrWhiteSpace(profile) ? "standard" : profile.Trim().ToLowerInvariant();
@@ -636,20 +411,6 @@ internal sealed class CodeUnderstandingQueryService
             ? Math.Clamp(limit.Value, 0, MaximumPageSize)
             : DefaultPageSize;
         return (normalizedOffset, normalizedLimit);
-    }
-
-    public static string NormalizeAccessibility(Accessibility accessibility)
-    {
-        return accessibility switch
-        {
-            Accessibility.Public => "public",
-            Accessibility.Internal => "internal",
-            Accessibility.Protected => "protected",
-            Accessibility.Private => "private",
-            Accessibility.ProtectedAndInternal => "private_protected",
-            Accessibility.ProtectedOrInternal => "protected_internal",
-            _ => "not_applicable"
-        };
     }
 
     public static bool TryNormalizeAccessibility(string? accessibility, out string? normalized)
@@ -728,16 +489,6 @@ internal sealed class CodeUnderstandingQueryService
         return normalized is "outgoing" or "incoming" or "both";
     }
 
-    public static string NormalizeNamespace(INamespaceSymbol? ns)
-    {
-        if (ns == null || ns.IsGlobalNamespace)
-        {
-            return string.Empty;
-        }
-
-        return ns.ToDisplayString();
-    }
-
     public static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -772,7 +523,4 @@ internal sealed class CodeUnderstandingQueryService
 
         return normalizedHint;
     }
-
-    public static string NormalizeQualifiedName(string value)
-        => value.Trim().Replace("global::", string.Empty, StringComparison.Ordinal);
 }

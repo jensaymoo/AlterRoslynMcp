@@ -82,14 +82,14 @@ internal sealed class ListTypesHandler
                 continue;
             }
 
-            foreach (var type in CodeUnderstandingQueryService.EnumerateTypes(compilation.Assembly.GlobalNamespace))
+            foreach (var type in compilation.Assembly.GlobalNamespace.EnumerateTypes())
             {
                 if (!type.Locations.Any(static location => location.IsInSource))
                 {
                     continue;
                 }
 
-                var kind = CodeUnderstandingQueryService.ToTypeKind(type);
+                var kind = type.ToTypeKind();
                 if (kind == null)
                 {
                     continue;
@@ -100,19 +100,19 @@ internal sealed class ListTypesHandler
                     continue;
                 }
 
-                var accessibility = CodeUnderstandingQueryService.NormalizeAccessibility(type.DeclaredAccessibility);
+                var accessibility = type.DeclaredAccessibility.NormalizeAccessibility();
                 if (normalizedAccessibility != null && !string.Equals(accessibility, normalizedAccessibility, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var typeNamespace = CodeUnderstandingQueryService.NormalizeNamespace(type.ContainingNamespace);
+                var typeNamespace = type.ContainingNamespace.NormalizeNamespace();
                 if (namespacePrefix != null && !typeNamespace.StartsWith(namespacePrefix, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var (filePath, line, column) = CodeUnderstandingQueryService.GetDeclarationPosition(type);
+                var (filePath, line, column) = type.GetDeclarationPosition();
                 entries.Add(new TypeListEntry(
                     type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                     SymbolIdentity.CreateId(type),
@@ -120,7 +120,7 @@ internal sealed class ListTypesHandler
                     line,
                     column,
                     kind,
-                    CodeUnderstandingQueryService.IsPartial(type),
+                    type.IsPartial(),
                     type.Arity > 0 ? type.Arity : null));
             }
         }

@@ -49,7 +49,7 @@ internal sealed class ResolveSymbolHandler
                         ("provided", request.SymbolId)));
             }
 
-            return new ResolveSymbolResult(CodeUnderstandingQueryService.ToResolvedSymbol(symbol), false, Array.Empty<ResolveSymbolCandidate>());
+            return new ResolveSymbolResult(symbol.ToResolvedSymbol(), false, Array.Empty<ResolveSymbolCandidate>());
         }
 
         if (!string.IsNullOrWhiteSpace(request.Path) && request.Line.HasValue && request.Column.HasValue)
@@ -75,7 +75,7 @@ internal sealed class ResolveSymbolHandler
                         ("provided", request.Path)));
             }
 
-            return new ResolveSymbolResult(CodeUnderstandingQueryService.ToResolvedSymbol(symbol), false, Array.Empty<ResolveSymbolCandidate>());
+            return new ResolveSymbolResult(symbol.ToResolvedSymbol(), false, Array.Empty<ResolveSymbolCandidate>());
         }
 
         if (!string.IsNullOrWhiteSpace(request.QualifiedName))

@@ -80,11 +80,11 @@ internal sealed class ListMembersHandler
         }
 
         var symbols = request.IncludeInherited
-            ? CodeUnderstandingQueryService.CollectMembersWithInheritance(typeSymbol.Symbol!)
+            ? typeSymbol.Symbol!.CollectMembersWithInheritance()
             : typeSymbol.Symbol!.GetMembers();
 
         var entries = symbols
-            .Select(member => CodeUnderstandingQueryService.ToMemberEntry(member, normalizedMemberKind, normalizedAccessibility, normalizedBinding))
+            .Select(member => member.ToMemberEntry(normalizedMemberKind, normalizedAccessibility, normalizedBinding))
             .Where(static entry => entry != null)
             .Select(static entry => entry!)
             .OrderBy(static item => item.Kind, StringComparer.Ordinal)
