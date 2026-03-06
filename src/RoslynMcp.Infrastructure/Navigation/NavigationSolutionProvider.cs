@@ -6,16 +6,10 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
-internal sealed class NavigationSolutionProvider
+internal sealed class NavigationSolutionProvider(IRoslynSolutionAccessor solutionAccessor, ILogger logger)
 {
-    private readonly IRoslynSolutionAccessor _solutionAccessor;
-    private readonly ILogger _logger;
-
-    public NavigationSolutionProvider(IRoslynSolutionAccessor solutionAccessor, ILogger logger)
-    {
-        _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly IRoslynSolutionAccessor _solutionAccessor = solutionAccessor ?? throw new ArgumentNullException(nameof(solutionAccessor));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<(Solution? Solution, ErrorInfo? Error)> TryGetSolutionAsync(CancellationToken ct)
     {

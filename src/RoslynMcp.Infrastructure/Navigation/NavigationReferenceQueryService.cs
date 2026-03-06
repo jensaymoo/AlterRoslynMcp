@@ -4,24 +4,16 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
-internal sealed class NavigationReferenceQueryService
+internal sealed class NavigationReferenceQueryService(
+    NavigationSolutionProvider solutionProvider,
+    ISymbolLookupService symbolLookupService,
+    IReferenceSearchService referenceSearchService,
+    ILogger logger)
 {
-    private readonly NavigationSolutionProvider _solutionProvider;
-    private readonly ISymbolLookupService _symbolLookupService;
-    private readonly IReferenceSearchService _referenceSearchService;
-    private readonly ILogger _logger;
-
-    public NavigationReferenceQueryService(
-        NavigationSolutionProvider solutionProvider,
-        ISymbolLookupService symbolLookupService,
-        IReferenceSearchService referenceSearchService,
-        ILogger logger)
-    {
-        _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
-        _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
-        _referenceSearchService = referenceSearchService ?? throw new ArgumentNullException(nameof(referenceSearchService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly NavigationSolutionProvider _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
+    private readonly ISymbolLookupService _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
+    private readonly IReferenceSearchService _referenceSearchService = referenceSearchService ?? throw new ArgumentNullException(nameof(referenceSearchService));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<FindReferencesResult> FindReferencesAsync(FindReferencesRequest request, CancellationToken ct)
     {
@@ -59,7 +51,7 @@ internal sealed class NavigationReferenceQueryService
         var invalidInputError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "find-implementations");
         if (invalidInputError != null)
         {
-            return new FindImplementationsResult(null, Array.Empty<SymbolDescriptor>(), invalidInputError);
+            return new FindImplementationsResult(null, [], invalidInputError);
         }
 
         try
@@ -67,14 +59,13 @@ internal sealed class NavigationReferenceQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new FindImplementationsResult(null, Array.Empty<SymbolDescriptor>(), error);
+                return new FindImplementationsResult(null, [], error);
             }
 
             var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new FindImplementationsResult(null,
-                    Array.Empty<SymbolDescriptor>(),
+                return new FindImplementationsResult(null, [],
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{request.SymbolId}' could not be resolved.",
                         ("symbolId", request.SymbolId),
@@ -115,9 +106,7 @@ internal sealed class NavigationReferenceQueryService
 
         if (!_referenceSearchService.IsValidScope(scope))
         {
-            return new FindReferencesScopedResult(null,
-                Array.Empty<SourceLocation>(),
-                0,
+            return new FindReferencesScopedResult(null, [], 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "scope must be one of: document, project, solution.",
                     ("parameter", "scope"),
@@ -127,9 +116,7 @@ internal sealed class NavigationReferenceQueryService
         if (string.Equals(scope, ReferenceScopes.Document, StringComparison.Ordinal) &&
             string.IsNullOrWhiteSpace(path))
         {
-            return new FindReferencesScopedResult(null,
-                Array.Empty<SourceLocation>(),
-                0,
+            return new FindReferencesScopedResult(null, [], 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "path is required when scope is document.",
                     ("parameter", "path"),
@@ -141,16 +128,14 @@ internal sealed class NavigationReferenceQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0, error);
+                return new FindReferencesScopedResult(null, [], 0, error);
             }
 
             var (symbol, ownerProject) = await _symbolLookupService.ResolveSymbolWithProjectAsync(symbolId, solution, ct)
                 .ConfigureAwait(false);
             if (symbol == null)
             {
-                return new FindReferencesScopedResult(null,
-                    Array.Empty<SourceLocation>(),
-                    0,
+                return new FindReferencesScopedResult(null, [], 0,
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{symbolId}' could not be resolved.",
                         ("symbolId", symbolId),
@@ -162,7 +147,7 @@ internal sealed class NavigationReferenceQueryService
                 var pathError = _referenceSearchService.TryValidateDocumentPath(path!, solution);
                 if (pathError != null)
                 {
-                    return new FindReferencesScopedResult(null, Array.Empty<SourceLocation>(), 0, pathError);
+                    return new FindReferencesScopedResult(null, [], 0, pathError);
                 }
             }
 
@@ -182,9 +167,7 @@ internal sealed class NavigationReferenceQueryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "FindReferencesScoped failed for {SymbolId}", symbolId);
-            return new FindReferencesScopedResult(null,
-                Array.Empty<SourceLocation>(),
-                0,
+            return new FindReferencesScopedResult(null, [], 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Failed to find references '{symbolId}': {ex.Message}",
                     ("symbolId", symbolId),

@@ -4,27 +4,19 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
-internal sealed class NavigationTypeHierarchyService
+internal sealed class NavigationTypeHierarchyService(
+    NavigationSolutionProvider solutionProvider,
+    ISymbolLookupService symbolLookupService,
+    ITypeIntrospectionService typeIntrospectionService,
+    ILogger logger)
 {
     private const int DefaultMaxDerived = 200;
     private const int MaxOutlineDepth = 3;
 
-    private readonly NavigationSolutionProvider _solutionProvider;
-    private readonly ISymbolLookupService _symbolLookupService;
-    private readonly ITypeIntrospectionService _typeIntrospectionService;
-    private readonly ILogger _logger;
-
-    public NavigationTypeHierarchyService(
-        NavigationSolutionProvider solutionProvider,
-        ISymbolLookupService symbolLookupService,
-        ITypeIntrospectionService typeIntrospectionService,
-        ILogger logger)
-    {
-        _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
-        _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
-        _typeIntrospectionService = typeIntrospectionService ?? throw new ArgumentNullException(nameof(typeIntrospectionService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly NavigationSolutionProvider _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
+    private readonly ISymbolLookupService _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
+    private readonly ITypeIntrospectionService _typeIntrospectionService = typeIntrospectionService ?? throw new ArgumentNullException(nameof(typeIntrospectionService));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<GetTypeHierarchyResult> GetTypeHierarchyAsync(GetTypeHierarchyRequest request, CancellationToken ct)
     {
@@ -34,11 +26,7 @@ internal sealed class NavigationTypeHierarchyService
         var invalidSymbolIdError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "get-type-hierarchy");
         if (invalidSymbolIdError != null)
         {
-            return new GetTypeHierarchyResult(null,
-                Array.Empty<SymbolDescriptor>(),
-                Array.Empty<SymbolDescriptor>(),
-                Array.Empty<SymbolDescriptor>(),
-                invalidSymbolIdError);
+            return new GetTypeHierarchyResult(null, [], [], [], invalidSymbolIdError);
         }
 
         try
@@ -46,20 +34,13 @@ internal sealed class NavigationTypeHierarchyService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new GetTypeHierarchyResult(null,
-                    Array.Empty<SymbolDescriptor>(),
-                    Array.Empty<SymbolDescriptor>(),
-                    Array.Empty<SymbolDescriptor>(),
-                    error);
+                return new GetTypeHierarchyResult(null, [], [], [], error);
             }
 
             var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new GetTypeHierarchyResult(null,
-                    Array.Empty<SymbolDescriptor>(),
-                    Array.Empty<SymbolDescriptor>(),
-                    Array.Empty<SymbolDescriptor>(),
+                return new GetTypeHierarchyResult(null, [], [], [],
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{request.SymbolId}' could not be resolved.",
                         ("symbolId", request.SymbolId),
@@ -119,7 +100,7 @@ internal sealed class NavigationTypeHierarchyService
         var invalidSymbolIdError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "get-symbol-outline");
         if (invalidSymbolIdError != null)
         {
-            return new GetSymbolOutlineResult(null, Array.Empty<SymbolMemberOutline>(), Array.Empty<string>(), invalidSymbolIdError);
+            return new GetSymbolOutlineResult(null, [], [], invalidSymbolIdError);
         }
 
         try
@@ -133,9 +114,7 @@ internal sealed class NavigationTypeHierarchyService
             var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new GetSymbolOutlineResult(null,
-                    Array.Empty<SymbolMemberOutline>(),
-                    Array.Empty<string>(),
+                return new GetSymbolOutlineResult(null, [], [],
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{request.SymbolId}' could not be resolved.",
                         ("symbolId", request.SymbolId),
@@ -154,9 +133,7 @@ internal sealed class NavigationTypeHierarchyService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetSymbolOutline failed for {SymbolId}", request.SymbolId);
-            return new GetSymbolOutlineResult(null,
-                Array.Empty<SymbolMemberOutline>(),
-                Array.Empty<string>(),
+            return new GetSymbolOutlineResult(null, [], [],
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Failed to build symbol outline '{request.SymbolId}': {ex.Message}",
                     ("symbolId", request.SymbolId),

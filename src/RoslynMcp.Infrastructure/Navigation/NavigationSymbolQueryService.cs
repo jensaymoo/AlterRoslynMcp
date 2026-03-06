@@ -5,21 +5,14 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
-internal sealed class NavigationSymbolQueryService
+internal sealed class NavigationSymbolQueryService(
+    NavigationSolutionProvider solutionProvider,
+    ISymbolLookupService symbolLookupService,
+    ILogger logger)
 {
-    private readonly NavigationSolutionProvider _solutionProvider;
-    private readonly ISymbolLookupService _symbolLookupService;
-    private readonly ILogger _logger;
-
-    public NavigationSymbolQueryService(
-        NavigationSolutionProvider solutionProvider,
-        ISymbolLookupService symbolLookupService,
-        ILogger logger)
-    {
-        _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
-        _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly NavigationSolutionProvider _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
+    private readonly ISymbolLookupService _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<FindSymbolResult> FindSymbolAsync(FindSymbolRequest request, CancellationToken ct)
     {
@@ -129,13 +122,13 @@ internal sealed class NavigationSymbolQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new SearchSymbolsResult(Array.Empty<SymbolDescriptor>(), 0, error);
+                return new SearchSymbolsResult([], 0, error);
             }
 
             var query = request.Query?.Trim();
             if (string.IsNullOrEmpty(query))
             {
-                return new SearchSymbolsResult(Array.Empty<SymbolDescriptor>(), 0);
+                return new SearchSymbolsResult([], 0);
             }
 
             var limit = Math.Max(request.Limit ?? int.MaxValue, 0);
@@ -150,7 +143,7 @@ internal sealed class NavigationSymbolQueryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "SearchSymbols failed for {Query}", request.Query);
-            return new SearchSymbolsResult(Array.Empty<SymbolDescriptor>(), 0,
+            return new SearchSymbolsResult([], 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Search failed: {ex.Message}",
                     ("query", request.Query),
@@ -165,12 +158,12 @@ internal sealed class NavigationSymbolQueryService
 
         if (string.IsNullOrWhiteSpace(request.Query))
         {
-            return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(), 0);
+            return new SearchSymbolsScopedResult([], 0);
         }
 
         if (!request.Scope.IsValidSearchScope())
         {
-            return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(),
+            return new SearchSymbolsScopedResult([],
                 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "scope must be one of: document, project, solution.",
@@ -180,7 +173,7 @@ internal sealed class NavigationSymbolQueryService
 
         if (string.Equals(request.Scope, SymbolSearchScopes.Document, StringComparison.Ordinal) && string.IsNullOrWhiteSpace(request.Path))
         {
-            return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(),
+            return new SearchSymbolsScopedResult([],
                 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "path is required when scope is document.",
@@ -193,12 +186,12 @@ internal sealed class NavigationSymbolQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(), 0, error);
+                return new SearchSymbolsScopedResult([], 0, error);
             }
 
             if (!solution.PathExistsInScope(request.Scope, request.Path))
             {
-                return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(),
+                return new SearchSymbolsScopedResult([],
                     0,
                     NavigationErrorFactory.CreateError(ErrorCodes.PathOutOfScope,
                         "The provided path is outside the selected solution scope.",
@@ -229,8 +222,7 @@ internal sealed class NavigationSymbolQueryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "SearchSymbolsScoped failed for {Query}", request.Query);
-            return new SearchSymbolsScopedResult(Array.Empty<SymbolDescriptor>(),
-                0,
+            return new SearchSymbolsScopedResult([], 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Scoped search failed: {ex.Message}",
                     ("operation", "search_symbols_scoped")));

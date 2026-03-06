@@ -4,26 +4,18 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure.Navigation;
 
-internal sealed class NavigationCallGraphQueryService
+internal sealed class NavigationCallGraphQueryService(
+    NavigationSolutionProvider solutionProvider,
+    ISymbolLookupService symbolLookupService,
+    ICallGraphService callGraphService,
+    ILogger logger)
 {
     private const int MaxCallGraphDepth = 4;
 
-    private readonly NavigationSolutionProvider _solutionProvider;
-    private readonly ISymbolLookupService _symbolLookupService;
-    private readonly ICallGraphService _callGraphService;
-    private readonly ILogger _logger;
-
-    public NavigationCallGraphQueryService(
-        NavigationSolutionProvider solutionProvider,
-        ISymbolLookupService symbolLookupService,
-        ICallGraphService callGraphService,
-        ILogger logger)
-    {
-        _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
-        _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
-        _callGraphService = callGraphService ?? throw new ArgumentNullException(nameof(callGraphService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly NavigationSolutionProvider _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
+    private readonly ISymbolLookupService _symbolLookupService = symbolLookupService ?? throw new ArgumentNullException(nameof(symbolLookupService));
+    private readonly ICallGraphService _callGraphService = callGraphService ?? throw new ArgumentNullException(nameof(callGraphService));
+    private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task<GetCallersResult> GetCallersAsync(GetCallersRequest request, CancellationToken ct)
     {
@@ -33,7 +25,7 @@ internal sealed class NavigationCallGraphQueryService
         var invalidInputError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "get-callers");
         if (invalidInputError != null)
         {
-            return new GetCallersResult(null, Array.Empty<CallEdge>(), invalidInputError);
+            return new GetCallersResult(null, [], invalidInputError);
         }
 
         try
@@ -41,15 +33,13 @@ internal sealed class NavigationCallGraphQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new GetCallersResult(null, Array.Empty<CallEdge>(), error);
+                return new GetCallersResult(null, [], error);
             }
 
             var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new GetCallersResult(null,
-                    Array.Empty<CallEdge>(),
-                    NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
+                return new GetCallersResult(null, [], NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{request.SymbolId}' could not be resolved.",
                         ("symbolId", request.SymbolId),
                         ("operation", "get-callers")));
@@ -66,8 +56,7 @@ internal sealed class NavigationCallGraphQueryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetCallers failed for {SymbolId}", request.SymbolId);
-            return new GetCallersResult(null,
-                Array.Empty<CallEdge>(),
+            return new GetCallersResult(null, [],
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Failed to compute callers '{request.SymbolId}': {ex.Message}",
                     ("symbolId", request.SymbolId),
@@ -83,7 +72,7 @@ internal sealed class NavigationCallGraphQueryService
         var invalidInputError = NavigationErrorFactory.TryCreateInvalidSymbolIdError(request.SymbolId, "get-callees");
         if (invalidInputError != null)
         {
-            return new GetCalleesResult(null, Array.Empty<CallEdge>(), invalidInputError);
+            return new GetCalleesResult(null, [], invalidInputError);
         }
 
         try
@@ -91,14 +80,13 @@ internal sealed class NavigationCallGraphQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new GetCalleesResult(null, Array.Empty<CallEdge>(), error);
+                return new GetCalleesResult(null, [], error);
             }
 
             var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new GetCalleesResult(null,
-                    Array.Empty<CallEdge>(),
+                return new GetCalleesResult(null, [],
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{request.SymbolId}' could not be resolved.",
                         ("symbolId", request.SymbolId),
@@ -116,8 +104,7 @@ internal sealed class NavigationCallGraphQueryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetCallees failed for {SymbolId}", request.SymbolId);
-            return new GetCalleesResult(null,
-                Array.Empty<CallEdge>(),
+            return new GetCalleesResult(null, [],
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Failed to compute callees '{request.SymbolId}': {ex.Message}",
                     ("symbolId", request.SymbolId),
@@ -138,10 +125,7 @@ internal sealed class NavigationCallGraphQueryService
 
         if (!_callGraphService.IsValidDirection(request.Direction))
         {
-            return new GetCallGraphResult(null,
-                Array.Empty<CallEdge>(),
-                0,
-                0,
+            return new GetCallGraphResult(null, [], 0, 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InvalidRequest,
                     "direction must be one of: incoming, outgoing, both.",
                     ("parameter", "direction"),
@@ -153,16 +137,13 @@ internal sealed class NavigationCallGraphQueryService
             var (solution, error) = await _solutionProvider.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return new GetCallGraphResult(null, Array.Empty<CallEdge>(), 0, 0, error);
+                return new GetCallGraphResult(null, [], 0, 0, error);
             }
 
             var symbol = await _symbolLookupService.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
             if (symbol == null)
             {
-                return new GetCallGraphResult(null,
-                    Array.Empty<CallEdge>(),
-                    0,
-                    0,
+                return new GetCallGraphResult(null, [], 0, 0,
                     NavigationErrorFactory.CreateError(ErrorCodes.SymbolNotFound,
                         $"Symbol '{request.SymbolId}' could not be resolved.",
                         ("symbolId", request.SymbolId),
@@ -198,10 +179,7 @@ internal sealed class NavigationCallGraphQueryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetCallGraph failed for {SymbolId}", request.SymbolId);
-            return new GetCallGraphResult(null,
-                Array.Empty<CallEdge>(),
-                0,
-                0,
+            return new GetCallGraphResult(null, [], 0, 0,
                 NavigationErrorFactory.CreateError(ErrorCodes.InternalError,
                     $"Failed to build call graph '{request.SymbolId}': {ex.Message}",
                     ("symbolId", request.SymbolId),

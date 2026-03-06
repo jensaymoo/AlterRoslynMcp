@@ -6,9 +6,9 @@ namespace RoslynMcp.Infrastructure.Navigation;
 
 internal static class SymbolIdentity
 {
-    private static readonly MethodInfo s_createString;
-    private static readonly MethodInfo s_resolveString;
-    private static readonly PropertyInfo s_resolutionSymbol;
+    private static readonly MethodInfo _createString;
+    private static readonly MethodInfo _resolveString;
+    private static readonly PropertyInfo _resolutionSymbol;
 
     static SymbolIdentity()
     {
@@ -16,26 +16,26 @@ internal static class SymbolIdentity
         var symbolKeyType = assembly.GetType("Microsoft.CodeAnalysis.SymbolKey", throwOnError: true)!;
         var resolutionType = assembly.GetType("Microsoft.CodeAnalysis.SymbolKeyResolution", throwOnError: true)!;
 
-        s_createString = symbolKeyType.GetMethod("CreateString", BindingFlags.Public | BindingFlags.Static,
+        _createString = symbolKeyType.GetMethod("CreateString", BindingFlags.Public | BindingFlags.Static,
                              binder: null,
-                             types: new[] { typeof(ISymbol), typeof(CancellationToken) },
+                             types: [typeof(ISymbol), typeof(CancellationToken)],
                              modifiers: null)
             ?? throw new InvalidOperationException("Unable to locate SymbolKey.CreateString");
 
-        s_resolveString = symbolKeyType.GetMethod("ResolveString", BindingFlags.Public | BindingFlags.Static,
+        _resolveString = symbolKeyType.GetMethod("ResolveString", BindingFlags.Public | BindingFlags.Static,
                               binder: null,
-                              types: new[] { typeof(string), typeof(Compilation), typeof(bool), typeof(CancellationToken) },
+                              types: [typeof(string), typeof(Compilation), typeof(bool), typeof(CancellationToken)],
                               modifiers: null)
             ?? throw new InvalidOperationException("Unable to locate SymbolKey.ResolveString");
 
-        s_resolutionSymbol = resolutionType.GetProperty("Symbol", BindingFlags.Public | BindingFlags.Instance)
+        _resolutionSymbol = resolutionType.GetProperty("Symbol", BindingFlags.Public | BindingFlags.Instance)
             ?? throw new InvalidOperationException("Unable to locate SymbolKeyResolution.Symbol");
     }
 
     public static string CreateId(ISymbol symbol)
     {
         var resolved = symbol.OriginalDefinition ?? symbol;
-        var result = (string?)s_createString.Invoke(null, new object?[] { resolved, CancellationToken.None });
+        var result = (string?)_createString.Invoke(null, [resolved, CancellationToken.None]);
         if (!string.IsNullOrEmpty(result))
         {
             return result;
@@ -51,12 +51,12 @@ internal static class SymbolIdentity
             return null;
         }
 
-        var resolution = s_resolveString.Invoke(null, new object?[] { identifier, compilation, true, ct });
+        var resolution = _resolveString.Invoke(null, [identifier, compilation, true, ct]);
         if (resolution == null)
         {
             return null;
         }
 
-        return (ISymbol?)s_resolutionSymbol.GetValue(resolution);
+        return (ISymbol?)_resolutionSymbol.GetValue(resolution);
     }
 }
