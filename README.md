@@ -108,7 +108,7 @@ Parameters:
 
 ### `list_types`
 
-Use this tool when you need to discover all types (classes, interfaces, enums, structs, records) defined in a specific project. This is useful when you want to explore what's available in a project or find a specific type by name.
+Use this tool when you need to list types declared in a specific loaded project. It is useful for project-scoped discovery and for finding type symbols by name before calling tools like `list_members`, `resolve_symbol`, or `get_type_hierarchy`.
 
 Parameters:
 - `projectPath` (optional): Exact path to a project file (`.csproj`). Specify only one of `projectPath`, `projectName`, or `projectId`.
@@ -123,7 +123,7 @@ Parameters:
 
 ### `list_members`
 
-Use this tool when you need to see what members (methods, properties, fields, events, constructors) exist inside a specific type. This helps you understand the structure and capabilities of a class or interface.
+Use this tool when you need to inspect the members declared by a specific type. It returns methods, properties, fields, events, and constructors, and supports filtering by kind, accessibility, binding, inheritance, and pagination so you can keep results focused.
 
 Parameters:
 - `typeSymbolId` (optional): The stable symbol ID of a type, obtained from `list_types`. Provide this OR `path`+`line`+`column`.
@@ -196,7 +196,7 @@ Parameters:
 
 ### `get_type_hierarchy`
 
-Use this tool when you need to understand the inheritance relationships of a type — its base classes, implemented interfaces, and any derived types. This helps you understand type evolution and polymorphism in your codebase.
+Use this tool when you need to inspect a type's inheritance relationships: base types, implemented interfaces, and derived types. Use `includeTransitive=false` for immediate parents and children only, or `true` to expand the full transitive hierarchy.
 
 Parameters:
 - `symbolId` (required): The stable symbol ID of a type, obtained from `resolve_symbol`, `list_types`, or `list_members`. Must resolve to a type (class, interface, enum, struct, or record).

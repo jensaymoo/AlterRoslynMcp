@@ -11,7 +11,7 @@ public sealed class ListMembersTool(ICodeUnderstandingService codeUnderstandingS
     private readonly ICodeUnderstandingService _codeUnderstandingService = codeUnderstandingService ?? throw new ArgumentNullException(nameof(codeUnderstandingService));
 
     [McpServerTool(Name = "list_members", Title = "List Members", ReadOnly = true, Idempotent = true)]
-    [Description("Use this tool when you need to see what members (methods, properties, fields, events, constructors) exist inside a specific type. This helps you understand the structure and capabilities of a class or interface.")]
+    [Description("Use this tool when you need to inspect the members declared by a specific type. It returns methods, properties, fields, events, and constructors, and supports filtering by kind, accessibility, binding, inheritance, and pagination so you can keep results focused.")]
     public Task<ListMembersResult> ExecuteAsync(CancellationToken cancellationToken,
         [Description("The stable symbol ID of a type, obtained from list_types. Provide this OR path+line+column.")]
         string? typeSymbolId = null,

@@ -11,7 +11,7 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
     private readonly ICodeUnderstandingService _codeUnderstandingService = codeUnderstandingService ?? throw new ArgumentNullException(nameof(codeUnderstandingService));
 
     [McpServerTool(Name = "list_types", Title = "List Types", ReadOnly = true, Idempotent = true)]
-    [Description("Use this tool when you need to discover all types (classes, interfaces, enums, structs, records) defined in a specific project. This is useful when you want to explore what's available in a project or find a specific type by name.")]
+    [Description("Use this tool when you need to list types declared in a specific loaded project. It is useful for project-scoped discovery and for finding type symbols by name before calling tools like list_members, resolve_symbol, or get_type_hierarchy.")]
     public Task<ListTypesResult> ExecuteAsync(CancellationToken cancellationToken,
         [Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId.")]
         string? projectPath = null,
