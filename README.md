@@ -188,10 +188,10 @@ Parameters:
 
 ### `find_implementations`
 
-Use this tool when you need to find all implementations of an interface, abstract class, or abstract/virtual method. This is essential for understanding polymorphism — where interfaces are implemented or where abstract members are overridden.
+Use this tool when you need to find concrete implementations of an interface or abstract type, and overrides or implementations of abstract/virtual members. This is essential for understanding static polymorphic targets in the loaded solution before refactoring or changing a contract.
     
 Parameters:
-- `symbolId` (required):The stable symbol ID of an interface, abstract class, or abstract/virtual method, obtained from `resolve_symbol`, `list_types`, or `list_members`.
+- `symbolId` (required): The stable symbol ID of an interface, abstract type, or abstract/virtual member, obtained from `resolve_symbol`, `list_types`, or `list_members`.
 
 
 ### `get_type_hierarchy`
