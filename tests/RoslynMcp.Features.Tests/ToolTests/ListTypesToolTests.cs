@@ -8,8 +8,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ListTypesToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<ListTypesTool>(fixture, output)
+public sealed class ListTypesToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<ListTypesTool>(fixture, output)
 {
     [Fact]
     public async Task ListTypesAsync_WithProjectNameSelector_ReturnsExpectedTypes()

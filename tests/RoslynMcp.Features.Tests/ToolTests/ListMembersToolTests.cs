@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ListMembersToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<ListMembersTool>(fixture, output)
+public sealed class ListMembersToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<ListMembersTool>(fixture, output)
 {
     [Fact]
     public async Task ListMembersAsync_WithTypeSymbolIdAndMethodFilter_ReturnsOrderedMethods()

@@ -6,8 +6,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class ListDependenciesToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<ListDependenciesTool>(fixture, output)
+public sealed class ListDependenciesToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<ListDependenciesTool>(fixture, output)
 {
     [Fact]
     public async Task ListDependenciesAsync_WithOutgoingDirection_ReturnsOutgoingDependencies()

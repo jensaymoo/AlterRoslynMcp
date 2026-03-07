@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class TraceCallFlowToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<TraceCallFlowTool>(fixture, output)
+public sealed class TraceCallFlowToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<TraceCallFlowTool>(fixture, output)
 {
     [Fact]
     public async Task TraceFlowAsync_WithResolvedRunAsyncSymbol_ReturnsStableDownstreamEdges()

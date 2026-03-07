@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class FindUsagesToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<FindUsagesTool>(fixture, output)
+public sealed class FindUsagesToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<FindUsagesTool>(fixture, output)
 {
     [Fact]
     public async Task FindUsagesAsync_WithSolutionScope_ReturnsOrderedReferences()

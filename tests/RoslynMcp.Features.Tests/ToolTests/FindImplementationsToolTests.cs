@@ -7,8 +7,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class FindImplementationsToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<FindImplementationsTool>(fixture, output)
+public sealed class FindImplementationsToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<FindImplementationsTool>(fixture, output)
 {
 
     [Fact]

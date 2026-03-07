@@ -5,8 +5,8 @@ using Xunit.Abstractions;
 
 namespace RoslynMcp.Features.Tests.ToolTests;
 
-public sealed class UnderstandCodebaseToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<UnderstandCodebaseTool>(fixture, output)
+public sealed class UnderstandCodebaseToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<UnderstandCodebaseTool>(fixture, output)
 {
     [Fact]
     public async Task UnderstandCodebaseAsync_WithQuickProfile_ReturnsOverviewAndHotspots()

@@ -9,8 +9,8 @@ namespace RoslynMcp.Features.Tests.ToolTests;
 
 public sealed record ExpectedCodeSmellFinding(int Line, int Column, string Title, string Category, string RiskLevel);
 
-public sealed class FindCodeSmellsToolTests(FeatureTestsFixture fixture, ITestOutputHelper output)
-    : ToolTests<FindCodeSmellsTool>(fixture, output)
+public sealed class FindCodeSmellsToolTests(SharedSandboxFeatureTestsFixture fixture, ITestOutputHelper output)
+    : SandboxedToolTests<FindCodeSmellsTool>(fixture, output)
 {
     [Fact]
     public async Task FindCodeSmellsAsync_WithNoOptionalFilters_PreservesCompatibility()
