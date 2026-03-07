@@ -56,7 +56,7 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 
 ## What You Can Use It For
 
-| Capability               | Description                                                       |
+| Inspection Tool          | Description                                                       |
 |--------------------------|-------------------------------------------------------------------|
 | **Load Solution**        | Loads a .sln/.slnx file and prepare the workspace                 |
 | **Understand Codebase**  | Quick orientation with complexity hotspots                        |
@@ -70,8 +70,10 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **Find Implementations** | Locate all implementaions of a interface or abstract class/method |
 | **Get Type Hierarchy**   | Explore type inheritance and derived types                        |
 | **Find Code Smells**     | Detect potential issues in a file                                 |
-| **Rename Symbol**        | Rename operation for types, methods, etc.                         |
 
+| Mutation Tool     | Description                                                       |
+|-------------------|-------------------------------------------------------------------|
+| **Rename Symbol** | Rename operation for types, methods, etc.                         |
 
 
 
@@ -85,7 +87,7 @@ These tool descriptions are written as routing triggers. Use them to help an age
 Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used.
 
 Parameters:
-- `solutionHintPath` (optional): Absolute path to the `.sln` file. If not provided, the tool will attempt to auto-detect a solution file.
+- `solutionHintPath` (optional): Absolute path to a `.sln` file, or to a directory used as the recursive discovery root for `.sln`/`.slnx` files. If omitted, the tool will auto-detect from the current workspace.
 
 
 ### `understand_codebase`
