@@ -63,12 +63,13 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **List Dependencies**    | Understand project relationships                                  |
 | **List Types**           | Discover all classes, interfaces, enums in a project              |
 | **List Members**         | Explore methods, properties, fields of any type                   |
-| **Resolve Symbols**      | Get canonical IDs for any code symbol                             |
-| **Explain Symbols**      | Understand what a symbol does and where it's used                 |
+| **Resolve Symbol**       | Get canonical IDs for a single code symbol                        |
+| **Resolve Symbols**      | Resolve multiple symbols in one round-trip                        |
+| **Explain Symbol**       | Understand what a symbol does and where it's used                 |
 | **Trace Call Flow**      | See upstream callers or downstream callees                        |
 | **Find Callers**         | Return only immediate direct upstream callers                     |
 | **Find Usages**          | Locate all references to a type/member                            |
-| **Find Implementations** | Locate all implementaions of a interface or abstract class/method |
+| **Find Implementations** | Locate all implementations of a interface or abstract class/method |
 | **Get Type Hierarchy**   | Explore type inheritance and derived types                        |
 | **Find Code Smells**     | Detect potential issues in a file                                 |
 
@@ -85,7 +86,7 @@ These tool descriptions are written as routing triggers. Use them to help an age
 
 ### `load_solution`
 
-Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used. In fresh or detached worktrees, `baselineDiagnostics` can spike when generated/intermediate artifacts have not been restored yet, so high counts are not always handwritten-source failures.
+Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used. The result now includes a readiness state so fresh or detached worktrees can be reported as degraded_missing_artifacts or degraded_restore_recommended instead of leaving users to infer that from diagnostics alone.
 
 Parameters:
 - `solutionHintPath` (optional): Absolute path to a `.sln` file, or to a directory used as the recursive discovery root for `.sln`/`.slnx` files. If omitted, the tool will auto-detect from the current workspace.
@@ -93,7 +94,7 @@ Parameters:
 
 ### `understand_codebase`
 
-Use this tool when you need a quick overview of the codebase structure at the start of a session. It returns the project structure with dependency relationships and identifies "hotspots" — the most complex and heavily-commented methods that are likely worth attention. Results are human-source-first by default, so generated/intermediate files such as `obj/` and `bin/` are filtered out of the initial hotspot view.
+Use this tool when you need a quick overview of the codebase structure at the start of a session. It returns the project structure with dependency relationships and identifies hotspots from hand-written source by default so generated/intermediate artifacts do not dominate the initial view.
 
 Parameters:
 - `profile` (optional): Analysis depth. `quick` for fast results, `standard` for balanced output, `deep` for thorough analysis. Defaults to `standard`.
@@ -101,7 +102,7 @@ Parameters:
 
 ### `list_dependencies`
 
-Use this tool when you need to understand how projects relate to each other within a solution. It shows the dependency graph between projects, indicating which projects depend on which others.
+Use this tool when you need to understand how projects relate to each other within a solution. It shows the dependency graph between projects, indicating which projects depend on which others. For automation, prefer projectPath as the stable selector; projectId is snapshot-local to the active workspace snapshot.
 
 Parameters:
 - `projectPath` (optional): Exact path to a project file (`.csproj`). This is the recommended stable selector for automation. Specify only one of `projectPath`, `projectName`, or `projectId`.
@@ -112,7 +113,7 @@ Parameters:
 
 ### `list_types`
 
-Use this tool when you need to list types declared in a specific loaded project. It is useful for project-scoped discovery and for finding type symbols by name before calling tools like `list_members`, `resolve_symbol`, or `get_type_hierarchy`. Results are human-source-first by default, so generated/intermediate declarations are filtered out of the default listing.
+Use this tool when you need to list types declared in a specific loaded project. It is useful for project-scoped discovery and for finding type symbols by name before calling tools like `list_members`, `resolve_symbol`, or `get_type_hierarchy`. For automation, prefer projectPath as the stable selector; projectId is snapshot-local to the active workspace snapshot. Results prefer handwritten declarations by default and now report source bias, completeness, and degraded discovery hints.
 
 Parameters:
 - `projectPath` (optional): Exact path to a project file (`.csproj`). This is the recommended stable selector for automation. Specify only one of `projectPath`, `projectName`, or `projectId`.
@@ -157,6 +158,14 @@ Parameters:
 - `projectId` (optional): Optional project scope for `qualifiedName` lookup — project ID from the current `load_solution` workspace snapshot. It is snapshot-local and can change after reload, so prefer `projectPath` when you need a durable selector.
 
 
+### `resolve_symbols`
+
+Use this tool when you need to resolve multiple symbols in one round-trip. Each entry reuses resolve_symbol semantics, including symbolId, source position, qualifiedName lookup, project scoping, readable symbol references, and structured ambiguity results.
+
+Parameters:
+- `entries` (required): The symbols to resolve. Each entry supports the same selector modes as resolve_symbol: symbolId, path+line+column, or qualifiedName with optional project scoping.
+
+
 ### `explain_symbol`
 
 Use this tool when you need to understand what a specific symbol (type, method, property, field, etc.) does, what its signature looks like, and where it is used in the codebase. It provides a human-readable explanation along with impact hints showing areas with high reference density.
@@ -170,7 +179,7 @@ Parameters:
 
 ### `trace_call_flow`
 
-Use this tool when you need to understand how code flows through your system — either finding what calls a specific symbol (upstream) or what a symbol calls (downstream). This is essential for debugging, impact analysis, and understanding architectural patterns. Results are human-source-first by default, so generated/intermediate call edges are filtered from the default interactive view.
+Use this tool when you need to understand how code flows through your system — either finding what calls a specific symbol (upstream) or what a symbol calls (downstream). This is essential for debugging, impact analysis, and understanding architectural patterns. Results prefer hand-written source by default so generated/intermediate call edges do not overwhelm interactive traces, and transition labels now degrade explicitly to unresolved_project/project_inference_degraded when attribution is uncertain. Set includePossibleTargets=true to receive a deliberate possible-runtime-target edge set for uncertain polymorphic dispatch.
 
 Parameters:
 - `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`. Provide this OR `path`+`line`+`column`.
@@ -179,11 +188,12 @@ Parameters:
 - `column` (optional): Column number (1-based) pointing to the symbol in the source file.
 - `direction` (optional): Which direction to trace. `upstream` finds callers (who uses this). `downstream` finds callees (what this calls). `both` returns both directions. Defaults to `both`.
 - `depth` (optional): How many levels of the call chain to traverse. Defaults to `2`. Use larger values for deeper analysis. `null` behaves the same as omitting the parameter.
+- `includePossibleTargets` (optional): When true, also returns possible-runtime-target edges for uncertain interface or polymorphic dispatch. Direct static edges remain separate in the main edge list.
 
 
 ### `find_callers`
 
-Use this tool when you need only the immediate direct callers of a symbol. It is a focused wrapper around `trace_call_flow` that always traces `upstream` with depth `1`, so it returns direct callers only and does not include transitive callers.
+Use this tool when you need only the immediate direct upstream callers of a symbol. This is a focused wrapper around call-flow tracing and does not traverse beyond one caller level.
 
 Parameters:
 - `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`, for the symbol whose immediate direct callers you want to inspect.
@@ -196,6 +206,7 @@ Use this tool when you need to find source-code references to a specific symbol 
 Parameters:
 - `symbolId` (required): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`.
 - `scope` (optional): The search scope. `project` searches only within the containing project. `solution` searches the entire solution. Defaults to `solution`.
+- `path` (optional): Required when scope=document: the file path to search within.
 
 
 ### `find_implementations`
@@ -218,21 +229,22 @@ Parameters:
 
 ### `find_codesmells`
 
-Use this tool when you need to check a specific file for potential code quality issues. It runs Roslyn-based static analysis to detect common problems such as dead code, performance anti-patterns, naming violations, and other code smells identified by Roslynator analyzers. Results are returned in deterministic stream order, with diagnostic anchors evaluated before declaration anchors.
+Use this tool when you need to check a specific file for potential code quality issues. It runs Roslyn-based static analysis to detect common problems such as dead code, performance anti-patterns, naming violations, and other code smells identified by Roslynator analyzers. Optional filters operate on stable normalized risk levels (low, review_required, high, info) and categories (analyzer, correctness, design, maintainability, performance, style) in deterministic stream order. reviewMode=conservative favors stronger review signals over low-noise style and trivia suggestions.
 
 Parameters:
 - `path` (required): Path to the source file to analyze. The file must exist in the currently loaded solution.
-- `maxFindings` (optional): Maximum number of accepted findings to return. Discovery stops as soon as this many matching findings are found.
-- `riskLevels` (optional): Accepted risk levels to include. Public result values are `low`, `review_required`, `high`, and `info`.
-- `categories` (optional): Accepted categories to include. Empty or omitted means all categories are included.
+- `maxFindings` (optional): Maximum number of accepted findings to return. When provided, discovery stops as soon as this many matching findings are found.
+- `riskLevels` (optional): Accepted risk levels to include. Use normalized result values such as low, review_required, high, or info.
+- `categories` (optional): Accepted categories to include. Use normalized values: analyzer, correctness, design, maintainability, performance, or style. When omitted or empty, all categories are included.
+- `reviewMode` (optional): Review ranking mode. Use 'default' for the existing stream or 'conservative' to suppress lightweight style/trivia noise when stronger issues are present.
 
 
 ### `format_document`
 
-Use this tool when you need to format exactly one C# source file in the loaded solution using the active solution formatting and style settings. It reports whether formatting produced a persisted content change.
+Use this tool when you need to format exactly one C# source file in the loaded solution using the solution's current formatting and style settings. Returns whether formatting changes were applied and persisted.
 
 Parameters:
-- `path` (required): Path to the C# source file to format. The file must belong to the currently loaded solution.
+- `path` (required): The path to the C# source file to format. The file must be part of the currently loaded solution.
 
 ## Usage Notes
 
@@ -247,4 +259,4 @@ Use this tool when you need to rename a symbol (type, method, property, field, p
 
 Parameters:
 - `symbolId` (required): The symbol ID of the symbol to rename. Use 'resolve_symbol' to obtain this if needed.
-- `newName` (optional): The new name for the symbol. Must be a valid C# identifier and should not conflict with existing symbols in the same scope.
+- `newName` (required): The new name for the symbol. Must be a valid C# identifier and should not conflict with existing symbols in the same scope.
