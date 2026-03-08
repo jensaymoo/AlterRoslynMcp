@@ -12,6 +12,7 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
     private readonly ListTypesHandler _listTypesHandler;
     private readonly ListMembersHandler _listMembersHandler;
     private readonly ResolveSymbolHandler _resolveSymbolHandler;
+    private readonly ResolveSymbolsBatchHandler _resolveSymbolsBatchHandler;
     private readonly ExplainSymbolHandler _explainSymbolHandler;
     private readonly ListDependenciesHandler _listDependenciesHandler;
 
@@ -34,6 +35,7 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
         _listTypesHandler = new ListTypesHandler(queries);
         _listMembersHandler = new ListMembersHandler(queries);
         _resolveSymbolHandler = new ResolveSymbolHandler(queries, symbolLookupService);
+        _resolveSymbolsBatchHandler = new ResolveSymbolsBatchHandler(_resolveSymbolHandler);
         _explainSymbolHandler = new ExplainSymbolHandler(queries, navigationService, solutionAccessor, symbolLookupService);
         _listDependenciesHandler = new ListDependenciesHandler(queries);
     }
@@ -52,6 +54,9 @@ public sealed class CodeUnderstandingService : ICodeUnderstandingService
 
     public Task<ResolveSymbolResult> ResolveSymbolAsync(ResolveSymbolRequest request, CancellationToken ct)
         => _resolveSymbolHandler.HandleAsync(request, ct);
+
+    public Task<ResolveSymbolsBatchResult> ResolveSymbolsBatchAsync(ResolveSymbolsBatchRequest request, CancellationToken ct)
+        => _resolveSymbolsBatchHandler.HandleAsync(request, ct);
 
     public Task<ListDependenciesResult> ListDependenciesAsync(ListDependenciesRequest request, CancellationToken ct)
         => _listDependenciesHandler.HandleAsync(request, ct);

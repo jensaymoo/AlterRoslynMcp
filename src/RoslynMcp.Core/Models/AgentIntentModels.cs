@@ -156,6 +156,17 @@ public sealed record ResolveSymbolRequest(
     string? ProjectName = null,
     string? ProjectId = null);
 
+public sealed record ResolveSymbolBatchEntry(
+    string? SymbolId = null,
+    string? Path = null,
+    int? Line = null,
+    int? Column = null,
+    string? QualifiedName = null,
+    string? ProjectPath = null,
+    string? ProjectName = null,
+    string? ProjectId = null,
+    string? Label = null);
+
 public sealed record ResolvedSymbolSummary(
     string SymbolId,
     string DisplayName,
@@ -181,6 +192,24 @@ public sealed record ResolveSymbolResult(
     ResolvedSymbolSummary? Symbol,
     bool IsAmbiguous,
     IReadOnlyList<ResolveSymbolCandidate> Candidates,
+    ErrorInfo? Error = null);
+
+public sealed record ResolveSymbolsBatchRequest(IReadOnlyList<ResolveSymbolBatchEntry> Entries);
+
+public sealed record ResolveSymbolsBatchItemResult(
+    int Index,
+    string? Label,
+    ResolvedSymbolSummary? Symbol,
+    bool IsAmbiguous,
+    IReadOnlyList<ResolveSymbolCandidate> Candidates,
+    ErrorInfo? Error = null);
+
+public sealed record ResolveSymbolsBatchResult(
+    IReadOnlyList<ResolveSymbolsBatchItemResult> Results,
+    int TotalCount,
+    int ResolvedCount,
+    int AmbiguousCount,
+    int ErrorCount,
     ErrorInfo? Error = null);
 
 public sealed record UnderstandCodebaseResult(

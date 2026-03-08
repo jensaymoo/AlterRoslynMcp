@@ -77,6 +77,21 @@ public static class ToolContractMapperExtensions
                 NormalizeOptionalString(projectName),
                 NormalizeOptionalString(projectId));
 
+        public ResolveSymbolsBatchRequest ToResolveSymbolsBatchRequest(IReadOnlyList<ResolveSymbolBatchEntry>? entries)
+            => new(
+                entries?.Select(static entry => new ResolveSymbolBatchEntry(
+                        NormalizeOptionalString(entry.SymbolId),
+                        NormalizeOptionalString(entry.Path),
+                        entry.Line.HasValue ? NormalizePosition(entry.Line.Value) : null,
+                        entry.Column.HasValue ? NormalizePosition(entry.Column.Value) : null,
+                        NormalizeOptionalString(entry.QualifiedName),
+                        NormalizeOptionalString(entry.ProjectPath),
+                        NormalizeOptionalString(entry.ProjectName),
+                        NormalizeOptionalString(entry.ProjectId),
+                        NormalizeOptionalString(entry.Label)))
+                    .ToArray()
+                ?? Array.Empty<ResolveSymbolBatchEntry>());
+
         public TraceFlowRequest ToTraceFlowRequest(string? path, int? line, int? column, string? direction, int? depth)
             => new(
                 NormalizeOptionalString(solutionHintPath),
