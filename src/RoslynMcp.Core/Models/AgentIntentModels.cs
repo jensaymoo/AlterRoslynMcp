@@ -264,13 +264,15 @@ public sealed record TraceFlowRequest(
     int? Line = null,
     int? Column = null,
     string? Direction = null,
-    int? Depth = null);
+    int? Depth = null,
+    bool IncludePossibleTargets = false);
 
 public sealed record TraceFlowResult(
     SymbolDescriptor? RootSymbol,
     string Direction,
     int Depth,
     IReadOnlyList<CallEdge> Edges,
+    IReadOnlyList<CallEdge>? PossibleTargetEdges,
     IReadOnlyList<FlowTransition> Transitions,
     IReadOnlyList<FlowUncertainty>? Uncertainties = null,
     ErrorInfo? Error = null);

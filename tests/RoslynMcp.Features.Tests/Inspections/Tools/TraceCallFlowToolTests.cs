@@ -48,6 +48,8 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         directPossibleTargets.IsEmpty();
         directEdge.FromReference.IsNotNull();
         directEdge.ToReference.IsNotNull();
+        result.PossibleTargetEdges.IsNotNull();
+        result.PossibleTargetEdges!.IsEmpty();
 
         result.Transitions.Any(static transition => transition.FromProject == "unknown" || transition.ToProject == "unknown").IsFalse();
         result.Transitions.Any(static transition => transition is { FromProject: "ProjectApp", ToProject: "ProjectCore" }).IsTrue();
@@ -119,6 +121,8 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         dispatchPossibleTargets.IsNotEmpty();
         dispatchPossibleTargets.Any(static target => target.Handle == "method:ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
         dispatchPossibleTargets.Any(static target => target.Handle == "method:ProjectImpl.SafeWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
+        result.PossibleTargetEdges.IsNotNull();
+        result.PossibleTargetEdges!.IsEmpty();
 
         result.Transitions.Any(static transition => transition.FromProject == "unknown" || transition.ToProject == "unknown").IsFalse();
         AssertTransition(result.Transitions, "ProjectApp", "ProjectApp", 3);
@@ -157,6 +161,39 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         result.Uncertainties.IsNotNull();
         var uncertainties = result.Uncertainties!;
         uncertainties.Any(static uncertainty => uncertainty.Category == FlowUncertaintyCategories.ReflectionBlindspot).IsTrue();
+        result.PossibleTargetEdges.IsNotNull();
+        result.PossibleTargetEdges!.IsEmpty();
+    }
+
+    [Fact]
+    public async Task TraceFlowAsync_WithPossibleTargetsMode_ReturnsExplicitPossibleTargetEdges()
+    {
+        var executeFlowAsync = await ResolveSymbolAsync(AppOrchestratorPath, line: 54, column: 35);
+        var result = await Sut.ExecuteAsync(
+            CancellationToken.None,
+            symbolId: executeFlowAsync.Symbol!.SymbolId,
+            direction: "downstream",
+            depth: 1,
+            includePossibleTargets: true);
+
+        result.Error.ShouldBeNone();
+        result.RootSymbol.IsNotNull();
+        result.Edges.Count.Is(1);
+        result.PossibleTargetEdges.IsNotNull();
+
+        var possibleTargetEdges = result.PossibleTargetEdges!;
+        (possibleTargetEdges.Count >= 2).IsTrue();
+        possibleTargetEdges.All(static edge => edge.EvidenceKind == FlowEvidenceKinds.PossibleTarget).IsTrue();
+        possibleTargetEdges.All(edge => edge.FromSymbolId == executeFlowAsync.Symbol.SymbolId).IsTrue();
+        possibleTargetEdges.Any(static edge => edge.ToReference!.Handle == "method:ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
+        possibleTargetEdges.Any(static edge => edge.ToReference!.Handle == "method:ProjectImpl.SafeWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
+
+        var directEdge = result.Edges[0];
+        directEdge.EvidenceKind.Is(FlowEvidenceKinds.DirectStatic);
+        directEdge.ToReference.IsNotNull();
+        directEdge.ToReference!.Handle.Is("method:ProjectCore.IOperation<TInput, TResult>.ExecuteAsync(TInput, CancellationToken)");
+        directEdge.Uncertainties.IsNotNull();
+        directEdge.Uncertainties!.Any(static uncertainty => uncertainty.Category == FlowUncertaintyCategories.InterfaceDispatch).IsTrue();
     }
 
     [Fact]

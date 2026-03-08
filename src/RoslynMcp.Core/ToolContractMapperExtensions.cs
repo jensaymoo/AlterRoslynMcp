@@ -92,14 +92,15 @@ public static class ToolContractMapperExtensions
                     .ToArray()
                 ?? Array.Empty<ResolveSymbolBatchEntry>());
 
-        public TraceFlowRequest ToTraceFlowRequest(string? path, int? line, int? column, string? direction, int? depth)
+        public TraceFlowRequest ToTraceFlowRequest(string? path, int? line, int? column, string? direction, int? depth, bool? includePossibleTargets)
             => new(
                 NormalizeOptionalString(solutionHintPath),
                 NormalizeOptionalString(path),
                 line.HasValue ? NormalizePosition(line.Value) : null,
                 column.HasValue ? NormalizePosition(column.Value) : null,
                 NormalizeOptionalString(direction)?.ToLowerInvariant(),
-                NormalizeNonNegative(depth));
+                NormalizeNonNegative(depth),
+                includePossibleTargets ?? false);
 
         public FindCodeSmellsRequest ToFindCodeSmellsRequest(int? maxFindings, IReadOnlyList<string>? riskLevels, IReadOnlyList<string>? categories, string? reviewMode)
             => new(

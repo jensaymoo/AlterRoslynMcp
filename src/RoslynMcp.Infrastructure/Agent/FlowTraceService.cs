@@ -26,6 +26,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                 directionValidation.Direction,
                 Math.Max(request.Depth ?? 2, 1),
                 Array.Empty<CallEdge>(),
+                Array.Empty<CallEdge>(),
                 Array.Empty<FlowTransition>(),
                 Array.Empty<FlowUncertainty>(),
                 directionValidation.Error);
@@ -42,6 +43,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                 direction,
                 depth,
                 Array.Empty<CallEdge>(),
+                Array.Empty<CallEdge>(),
                 Array.Empty<FlowTransition>(),
                 Array.Empty<FlowUncertainty>(),
                 AgentErrorInfo.Normalize(root.Error, "Call trace_flow with a resolvable symbolId or source position."));
@@ -57,6 +59,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                     root.Symbol,
                     direction,
                     depth,
+                    Array.Empty<CallEdge>(),
                     Array.Empty<CallEdge>(),
                     Array.Empty<FlowTransition>(),
                     Array.Empty<FlowUncertainty>(),
@@ -75,6 +78,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                     direction,
                     depth,
                     Array.Empty<CallEdge>(),
+                    Array.Empty<CallEdge>(),
                     Array.Empty<FlowTransition>(),
                     Array.Empty<FlowUncertainty>(),
                     AgentErrorInfo.Normalize(callees.Error, "Retry trace_flow with a resolvable symbol and supported downstream traversal depth."));
@@ -91,6 +95,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                     root.Symbol,
                     direction,
                     depth,
+                    Array.Empty<CallEdge>(),
                     Array.Empty<CallEdge>(),
                     Array.Empty<FlowTransition>(),
                     Array.Empty<FlowUncertainty>(),
@@ -125,7 +130,49 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
             .Select(group => new FlowTransition(group.Key.From, group.Key.To, group.Count(), GetTransitionUncertaintyCategories(group.Key.From, group.Key.To)))
             .ToArray();
 
-        return new TraceFlowResult(root.Symbol, direction, depth, filteredEdges, transitions, resultUncertainties);
+        var possibleTargetEdges = request.IncludePossibleTargets
+            ? BuildPossibleTargetEdges(filteredEdges)
+            : Array.Empty<CallEdge>();
+
+        return new TraceFlowResult(root.Symbol, direction, depth, filteredEdges, possibleTargetEdges, transitions, resultUncertainties);
+    }
+
+    private static IReadOnlyList<CallEdge> BuildPossibleTargetEdges(IReadOnlyList<CallEdge> edges)
+    {
+        if (edges.Count == 0)
+        {
+            return Array.Empty<CallEdge>();
+        }
+
+        var unique = new Dictionary<string, CallEdge>(StringComparer.Ordinal);
+        foreach (var edge in edges)
+        {
+            if (edge.PossibleTargets is null || edge.PossibleTargets.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (var target in edge.PossibleTargets)
+            {
+                var possibleEdge = new CallEdge(
+                    edge.FromSymbolId,
+                    target.SymbolId,
+                    edge.Location,
+                    edge.FromReference,
+                    target,
+                    FlowEvidenceKinds.PossibleTarget,
+                    edge.Uncertainties ?? Array.Empty<FlowUncertainty>(),
+                    Array.Empty<SymbolReference>());
+
+                unique[possibleEdge.GetEdgeKey()] = possibleEdge;
+            }
+        }
+
+        return unique.Values
+            .OrderBy(static edge => edge.Location, SourceLocationComparer.Instance)
+            .ThenBy(static edge => edge.FromSymbolId, StringComparer.Ordinal)
+            .ThenBy(static edge => edge.ToSymbolId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private async Task<IReadOnlyList<CallEdge>> EnrichEdgesAsync(Solution solution, IReadOnlyList<CallEdge> edges, CancellationToken ct)

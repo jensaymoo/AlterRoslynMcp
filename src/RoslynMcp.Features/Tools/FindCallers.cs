@@ -16,5 +16,5 @@ public sealed class FindCallersTool(IFlowTraceService flowTraceService) : Tool
         [Description("The stable symbol ID, obtained from resolve_symbol, list_types, or list_members, for the symbol whose immediate direct callers you want to inspect.")]
         string? symbolId = null
         )
-        => _flowTraceService.TraceFlowAsync(symbolId.ToTraceFlowRequest(null, null, null, "upstream", 1), cancellationToken);
+        => _flowTraceService.TraceFlowAsync(symbolId.ToTraceFlowRequest(null, null, null, "upstream", 1, false), cancellationToken);
 }
