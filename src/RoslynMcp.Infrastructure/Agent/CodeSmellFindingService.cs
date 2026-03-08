@@ -46,6 +46,7 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 Array.Empty<CodeSmellMatch>(),
                 Array.Empty<string>(),
                 UnknownContext,
+                Array.Empty<CodeSmellGroup>(),
                 AgentErrorInfo.Normalize(solutionError,
                     "Call load_solution first to select a solution before finding code smells."));
         }
@@ -64,7 +65,7 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 "Use a source document path that exists in the loaded solution.",
                 ("field", "path"),
                 ("provided", path));
-            return new FindCodeSmellsResult(Array.Empty<CodeSmellMatch>(), Array.Empty<string>(), UnknownContext, error);
+            return new FindCodeSmellsResult(Array.Empty<CodeSmellMatch>(), Array.Empty<string>(), UnknownContext, Array.Empty<CodeSmellGroup>(), error);
         }
 
         if (matchingDocuments.Length > 1)
@@ -75,7 +76,7 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 "Provide a unique source document path from the loaded solution.",
                 ("field", "path"),
                 ("provided", path));
-            return new FindCodeSmellsResult(Array.Empty<CodeSmellMatch>(), Array.Empty<string>(), UnknownContext, error);
+            return new FindCodeSmellsResult(Array.Empty<CodeSmellMatch>(), Array.Empty<string>(), UnknownContext, Array.Empty<CodeSmellGroup>(), error);
         }
 
         var document = matchingDocuments[0];
@@ -137,7 +138,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                     normalizedCategory,
                     new SourceLocation(anchor.FilePath, anchor.Line, anchor.Column),
                     action.Origin,
-                    normalizedRiskLevel);
+                    normalizedRiskLevel,
+                    DetermineReviewKind(normalizedCategory, normalizedRiskLevel, action.Origin, action.Title));
 
                 if (!filters.Accepts(match))
                 {
@@ -145,22 +147,20 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
                 }
 
                 actions.Add(match);
-
-                if (filters.HasReachedLimit(actions.Count))
-                {
-                    var limitedMatches = DeduplicateMatches(actions, warnings);
-                    return new FindCodeSmellsResult(limitedMatches, warnings, CreateContext(document.FilePath, warnings));
-                }
             }
         }
 
         var deduped = DeduplicateMatches(actions, warnings);
-        if (deduped.Count == 0 && (filters.RiskLevels is not null || filters.Categories is not null))
+        var prioritized = PrioritizeMatches(deduped);
+        var (grouped, groupedMatches) = BuildGroups(prioritized);
+        var limitedMatches = filters.ApplyLimit(groupedMatches);
+        var limitedGroups = LimitGroups(grouped, limitedMatches);
+        if (limitedMatches.Count == 0 && (filters.RiskLevels is not null || filters.Categories is not null))
         {
             warnings.Add("No findings matched the requested riskLevels/categories filters.");
         }
 
-        return new FindCodeSmellsResult(deduped, warnings, CreateContext(document.FilePath, warnings));
+        return new FindCodeSmellsResult(limitedMatches, warnings, CreateContext(document.FilePath, warnings), limitedGroups);
     }
 
     private async Task<IReadOnlyList<AnchorPosition>> CollectAnchorsAsync(Document document, List<string> warnings, CancellationToken ct)
@@ -344,7 +344,7 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
     }
 
     private static FindCodeSmellsResult CreateInvalidInputResult(string message, params (string Key, string? Value)[] details)
-        => new(Array.Empty<CodeSmellMatch>(), Array.Empty<string>(), UnknownContext, AgentErrorInfo.Create(ErrorCodes.InvalidInput, message, "Adjust input and retry find_codesmells.", details));
+        => new(Array.Empty<CodeSmellMatch>(), Array.Empty<string>(), UnknownContext, Array.Empty<CodeSmellGroup>(), AgentErrorInfo.Create(ErrorCodes.InvalidInput, message, "Adjust input and retry find_codesmells.", details));
 
     private static (FindCodeSmellFilters? Filters, FindCodeSmellsResult? Error) ValidateRequest(FindCodeSmellsRequest request)
     {
@@ -652,6 +652,200 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
         return deduped;
     }
 
+    private static IReadOnlyList<CodeSmellMatch> PrioritizeMatches(IReadOnlyList<CodeSmellMatch> matches)
+        => matches
+            .OrderBy(GetReviewKindPriority)
+            .ThenByDescending(GetRiskPriority)
+            .ThenBy(GetCategoryPriority)
+            .ThenBy(static match => match.Location.FilePath, StringComparer.Ordinal)
+            .ThenBy(static match => match.Location.Line)
+            .ThenBy(static match => match.Location.Column)
+            .ThenBy(static match => match.Title, StringComparer.Ordinal)
+            .ToArray();
+
+    private static (IReadOnlyList<CodeSmellGroup> Groups, IReadOnlyList<CodeSmellMatch> Matches) BuildGroups(IReadOnlyList<CodeSmellMatch> matches)
+    {
+        if (matches.Count == 0)
+        {
+            return (Array.Empty<CodeSmellGroup>(), matches);
+        }
+
+        var ordered = matches
+            .OrderBy(static match => match.Location.FilePath, StringComparer.Ordinal)
+            .ThenBy(static match => match.Location.Line)
+            .ThenBy(static match => match.Location.Column)
+            .ThenBy(static match => match.Title, StringComparer.Ordinal)
+            .ToArray();
+
+        var groups = new List<CodeSmellGroup>();
+        var assignments = new Dictionary<string, string>(StringComparer.Ordinal);
+        var current = new List<CodeSmellMatch>();
+
+        foreach (var match in ordered)
+        {
+            if (current.Count == 0 || ShouldStayInSameGroup(current[^1], match))
+            {
+                current.Add(match);
+                continue;
+            }
+
+            AddGroup(groups, assignments, current, groups.Count + 1);
+            current.Clear();
+            current.Add(match);
+        }
+
+        if (current.Count > 0)
+        {
+            AddGroup(groups, assignments, current, groups.Count + 1);
+        }
+
+        var orderedGroups = groups
+            .OrderBy(static group => GetReviewKindPriority(group.ReviewKind))
+            .ThenByDescending(static group => GetRiskPriority(group.DominantRiskLevel))
+            .ThenBy(static group => GetCategoryPriority(group.DominantCategory))
+            .ThenBy(static group => group.PrimaryLocation.FilePath, StringComparer.Ordinal)
+            .ThenBy(static group => group.PrimaryLocation.Line)
+            .ThenBy(static group => group.PrimaryLocation.Column)
+            .ToArray();
+
+        var groupedMatches = matches
+            .Select(match => match with { GroupId = assignments[CreateMatchKey(match)] })
+            .ToArray();
+
+        return (orderedGroups, groupedMatches);
+    }
+
+    private static IReadOnlyList<CodeSmellGroup> LimitGroups(IReadOnlyList<CodeSmellGroup> groups, IReadOnlyList<CodeSmellMatch> matches)
+    {
+        if (groups.Count == 0 || matches.Count == 0)
+        {
+            return Array.Empty<CodeSmellGroup>();
+        }
+
+        var visibleGroupIds = matches
+            .Select(static match => match.GroupId)
+            .Where(static groupId => !string.IsNullOrWhiteSpace(groupId))
+            .ToHashSet(StringComparer.Ordinal);
+
+        return groups.Where(group => visibleGroupIds.Contains(group.GroupId)).ToArray();
+    }
+
+    private static bool ShouldStayInSameGroup(CodeSmellMatch previous, CodeSmellMatch current)
+        => previous.Location.FilePath.MatchesByNormalizedPath(current.Location.FilePath)
+           && Math.Abs(previous.Location.Line - current.Location.Line) <= 2
+           && string.Equals(previous.Category, current.Category, StringComparison.Ordinal)
+           && string.Equals(previous.ReviewKind, current.ReviewKind, StringComparison.Ordinal);
+
+    private static void AddGroup(
+        ICollection<CodeSmellGroup> groups,
+        IDictionary<string, string> assignments,
+        IReadOnlyList<CodeSmellMatch> matches,
+        int sequence)
+    {
+        var group = CreateGroup(matches, sequence);
+        groups.Add(group);
+
+        foreach (var match in matches)
+        {
+            assignments[CreateMatchKey(match)] = group.GroupId;
+        }
+    }
+
+    private static CodeSmellGroup CreateGroup(IReadOnlyList<CodeSmellMatch> matches, int sequence)
+    {
+        var ordered = matches
+            .OrderBy(GetReviewKindPriority)
+            .ThenByDescending(GetRiskPriority)
+            .ThenBy(GetCategoryPriority)
+            .ThenBy(static match => match.Location.Line)
+            .ThenBy(static match => match.Location.Column)
+            .ToArray();
+
+        var primary = ordered[0];
+        var groupId = $"group:{NormalizePathForDeduplication(primary.Location.FilePath)}:{primary.Location.Line}:{primary.Location.Column}:{sequence}";
+        var lineRange = matches.Select(static match => match.Location.Line).Distinct().OrderBy(static line => line).ToArray();
+        var label = lineRange.Length == 1
+            ? $"{primary.Category} findings near line {lineRange[0]}"
+            : $"{primary.Category} findings near lines {lineRange[0]}-{lineRange[^1]}";
+
+        return new CodeSmellGroup(
+            groupId,
+            label,
+            primary.Location,
+            matches.Count,
+            primary.Category,
+            primary.RiskLevel,
+            primary.ReviewKind ?? CodeSmellReviewKinds.ReviewConcern,
+            matches.Select(static match => match.Title).Distinct(StringComparer.Ordinal).OrderBy(static title => title, StringComparer.Ordinal).ToArray());
+    }
+
+    private static string CreateMatchKey(CodeSmellMatch match)
+        => string.Join('|',
+            NormalizePathForDeduplication(match.Location.FilePath),
+            match.Location.Line,
+            match.Location.Column,
+            match.Title,
+            match.Category,
+            match.Origin,
+            match.RiskLevel,
+            match.ReviewKind);
+
+    private static string DetermineReviewKind(string category, string riskLevel, string? origin, string title)
+    {
+        if (category == "style")
+        {
+            return CodeSmellReviewKinds.StyleSuggestion;
+        }
+
+        if (category == "analyzer" || string.Equals(origin, "roslynator_diagnostic", StringComparison.OrdinalIgnoreCase))
+        {
+            return CodeSmellReviewKinds.CodeFixHint;
+        }
+
+        return riskLevel is "high" or "review_required"
+            ? CodeSmellReviewKinds.ReviewConcern
+            : CodeSmellReviewKinds.CodeFixHint;
+    }
+
+    private static int GetReviewKindPriority(CodeSmellMatch match)
+        => GetReviewKindPriority(match.ReviewKind);
+
+    private static int GetReviewKindPriority(string? reviewKind)
+        => reviewKind switch
+        {
+            CodeSmellReviewKinds.ReviewConcern => 0,
+            CodeSmellReviewKinds.CodeFixHint => 1,
+            CodeSmellReviewKinds.StyleSuggestion => 2,
+            _ => 3
+        };
+
+    private static int GetRiskPriority(CodeSmellMatch match)
+        => GetRiskPriority(match.RiskLevel);
+
+    private static int GetRiskPriority(string? riskLevel)
+        => riskLevel switch
+        {
+            "high" => 3,
+            "review_required" => 2,
+            "low" => 1,
+            _ => 0
+        };
+
+    private static int GetCategoryPriority(CodeSmellMatch match)
+        => GetCategoryPriority(match.Category);
+
+    private static int GetCategoryPriority(string? category)
+        => category switch
+        {
+            "correctness" => 0,
+            "design" => 1,
+            "maintainability" => 2,
+            "performance" => 3,
+            "analyzer" => 4,
+            "style" => 5,
+            _ => 6
+        };
+
     private static bool IsDeclarationAnchorCandidate(SyntaxNode node)
         => node is BaseTypeDeclarationSyntax
             or DelegateDeclarationSyntax
@@ -721,5 +915,8 @@ public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAcce
 
         public bool HasReachedLimit(int acceptedCount)
             => MaxFindings is not null && acceptedCount >= MaxFindings.Value;
+
+        public IReadOnlyList<CodeSmellMatch> ApplyLimit(IReadOnlyList<CodeSmellMatch> matches)
+            => MaxFindings is null ? matches : matches.Take(MaxFindings.Value).ToArray();
     }
 }

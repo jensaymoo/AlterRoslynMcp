@@ -252,15 +252,35 @@ public sealed record FindCodeSmellsRequest(
     IReadOnlyList<string>? RiskLevels = null,
     IReadOnlyList<string>? Categories = null);
 
+public static class CodeSmellReviewKinds
+{
+    public const string StyleSuggestion = "style_suggestion";
+    public const string CodeFixHint = "code_fix_hint";
+    public const string ReviewConcern = "review_concern";
+}
+
+public sealed record CodeSmellGroup(
+    string GroupId,
+    string Label,
+    SourceLocation PrimaryLocation,
+    int MatchCount,
+    string DominantCategory,
+    string DominantRiskLevel,
+    string ReviewKind,
+    IReadOnlyList<string> Titles);
+
 public sealed record CodeSmellMatch(
     string Title,
     string Category,
     SourceLocation Location,
     string Origin,
-    string RiskLevel);
+    string RiskLevel,
+    string? ReviewKind = null,
+    string? GroupId = null);
 
 public sealed record FindCodeSmellsResult(
     IReadOnlyList<CodeSmellMatch> Actions,
     IReadOnlyList<string> Warnings,
     ResultContextMetadata Context,
+    IReadOnlyList<CodeSmellGroup>? Groups = null,
     ErrorInfo? Error = null);
