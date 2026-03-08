@@ -201,7 +201,33 @@ public sealed record ExplainSymbolResult(
     IReadOnlyList<ImpactHint> ImpactHints,
     ErrorInfo? Error = null);
 
-public sealed record FlowTransition(string FromProject, string ToProject, int Count);
+public sealed record FlowTransition(
+    string FromProject,
+    string ToProject,
+    int Count,
+    IReadOnlyList<string>? UncertaintyCategories = null);
+
+public static class FlowEvidenceKinds
+{
+    public const string DirectStatic = "direct_static";
+    public const string PossibleTarget = "possible_target";
+}
+
+public static class FlowUncertaintyCategories
+{
+    public const string InterfaceDispatch = "interface_dispatch";
+    public const string PolymorphicInference = "polymorphic_inference";
+    public const string ReflectionBlindspot = "reflection_blindspot";
+    public const string DynamicUnresolved = "dynamic_unresolved";
+    public const string UnresolvedProject = "unresolved_project";
+    public const string ProjectInferenceDegraded = "project_inference_degraded";
+}
+
+public sealed record FlowUncertainty(
+    string Category,
+    string Message,
+    SourceLocation? Location = null,
+    SymbolReference? RelatedSymbol = null);
 
 public sealed record TraceFlowRequest(
     string? SymbolId = null,
@@ -217,6 +243,7 @@ public sealed record TraceFlowResult(
     int Depth,
     IReadOnlyList<CallEdge> Edges,
     IReadOnlyList<FlowTransition> Transitions,
+    IReadOnlyList<FlowUncertainty>? Uncertainties = null,
     ErrorInfo? Error = null);
 
 public sealed record FindCodeSmellsRequest(

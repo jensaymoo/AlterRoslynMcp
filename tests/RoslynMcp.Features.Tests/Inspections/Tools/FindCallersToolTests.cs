@@ -32,6 +32,15 @@ public sealed class FindCallersToolTests(SharedSandboxFixture fixture, ITestOutp
         edge.ToSymbolId.Is(executeFlowAsync.SymbolId);
         edge.Location.FilePath.ShouldEndWithPathSuffix(Path.Combine("ProjectApp", "AppOrchestrator.cs"));
         edge.Location.Line.Is(23);
+        edge.EvidenceKind.Is(FlowEvidenceKinds.DirectStatic);
+        edge.Uncertainties.IsNotNull();
+        var uncertainties = edge.Uncertainties!;
+        uncertainties.IsEmpty();
+        edge.PossibleTargets.IsNotNull();
+        var possibleTargets = edge.PossibleTargets!;
+        possibleTargets.IsEmpty();
+        edge.FromReference.IsNotNull();
+        edge.ToReference.IsNotNull();
 
         result.Edges.Any(candidate => candidate.FromSymbolId == runFastAsync.SymbolId).IsFalse();
         result.Edges.Any(candidate => candidate.FromSymbolId == runSafeAsync.SymbolId).IsFalse();

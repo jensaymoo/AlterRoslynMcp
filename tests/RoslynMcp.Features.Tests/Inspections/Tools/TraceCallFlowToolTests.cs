@@ -38,6 +38,17 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         AssertEdge(result.Edges, startAsync.Symbol.SymbolId, changeState.Symbol!.SymbolId, Path.Combine("ProjectImpl", "ProcessingSession.Lifecycle.cs"), 7);
         AssertEdge(result.Edges, stop.Symbol.SymbolId, changeState.Symbol.SymbolId, Path.Combine("ProjectImpl", "ProcessingSession.Lifecycle.cs"), 14);
 
+        var directEdge = GetEdge(result.Edges, runAsync.Symbol.SymbolId, startAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 20);
+        directEdge.EvidenceKind.Is(FlowEvidenceKinds.DirectStatic);
+        directEdge.Uncertainties.IsNotNull();
+        var directUncertainties = directEdge.Uncertainties!;
+        directUncertainties.IsEmpty();
+        directEdge.PossibleTargets.IsNotNull();
+        var directPossibleTargets = directEdge.PossibleTargets!;
+        directPossibleTargets.IsEmpty();
+        directEdge.FromReference.IsNotNull();
+        directEdge.ToReference.IsNotNull();
+
         result.Transitions.Any(static transition => transition.FromProject == "unknown" || transition.ToProject == "unknown").IsFalse();
         result.Transitions.Any(static transition => transition is { FromProject: "ProjectApp", ToProject: "ProjectCore" }).IsTrue();
         result.Transitions.Any(static transition => transition is { FromProject: "ProjectApp", ToProject: "ProjectImpl" }).IsTrue();
@@ -97,6 +108,18 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         AssertEdge(result.Edges, runFastAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 80);
         AssertEdge(result.Edges, runSafeAsync.Symbol!.SymbolId, runAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 85);
         AssertEdge(result.Edges, executeFlowAsync.Symbol.SymbolId, operationExecuteAsync.Symbol!.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 56);
+
+        var dispatchEdge = GetEdge(result.Edges, executeFlowAsync.Symbol.SymbolId, operationExecuteAsync.Symbol.SymbolId, Path.Combine("ProjectApp", "AppOrchestrator.cs"), 56);
+        dispatchEdge.EvidenceKind.Is(FlowEvidenceKinds.DirectStatic);
+        dispatchEdge.Uncertainties.IsNotNull();
+        var dispatchUncertainties = dispatchEdge.Uncertainties!;
+        dispatchUncertainties.Any(static uncertainty => uncertainty.Category == FlowUncertaintyCategories.InterfaceDispatch).IsTrue();
+        dispatchEdge.PossibleTargets.IsNotNull();
+        var dispatchPossibleTargets = dispatchEdge.PossibleTargets!;
+        dispatchPossibleTargets.IsNotEmpty();
+        dispatchPossibleTargets.Any(static target => target.Handle == "method:ProjectImpl.FastWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
+        dispatchPossibleTargets.Any(static target => target.Handle == "method:ProjectImpl.SafeWorkItemOperation.ExecuteAsync(WorkItem, CancellationToken)").IsTrue();
+
         result.Transitions.Any(static transition => transition.FromProject == "unknown" || transition.ToProject == "unknown").IsFalse();
         AssertTransition(result.Transitions, "ProjectApp", "ProjectApp", 3);
         AssertTransition(result.Transitions, "ProjectApp", "ProjectCore", 1);
@@ -131,6 +154,9 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
         result.RootSymbol!.Name.Is("RunReflectionPathAsync");
         result.Edges.Count.Is(0);
         result.Transitions.Count.Is(0);
+        result.Uncertainties.IsNotNull();
+        var uncertainties = result.Uncertainties!;
+        uncertainties.Any(static uncertainty => uncertainty.Category == FlowUncertaintyCategories.ReflectionBlindspot).IsTrue();
     }
 
     [Fact]
@@ -193,6 +219,13 @@ public sealed class TraceCallFlowToolTests(SharedSandboxFixture fixture, ITestOu
             edge.Location.Line == expectedLine).IsTrue();
     }
 
+    private static CallEdge GetEdge(IReadOnlyList<CallEdge> edges, string fromSymbolId, string toSymbolId, string expectedFileSuffix, int expectedLine)
+        => edges.Single(edge =>
+            edge.FromSymbolId == fromSymbolId &&
+            edge.ToSymbolId == toSymbolId &&
+            edge.Location.FilePath.HasPathSuffix(expectedFileSuffix) &&
+            edge.Location.Line == expectedLine);
+
     private static void AssertTransition(IReadOnlyList<FlowTransition> transitions, string fromProject, string toProject, int expectedCount)
     {
         transitions.Any(transition =>
@@ -243,5 +276,45 @@ public static class RunAsyncTests
         result.Error.ShouldBeNone();
         result.Edges.Count.Is(2);
         result.Edges.Any(edge => edge.Location.FilePath.HasPathSuffix(Path.Combine("ProjectApp", "RunAsyncTests.cs"))).IsFalse();
+    }
+
+    [Fact]
+    public async Task TraceFlowAsync_WithDynamicDispatchRoot_ReportsDynamicUnresolvedBlindspot()
+    {
+        await using var context = await CreateContextAsync();
+        var traceTool = GetSut(context);
+        var resolveTool = context.GetRequiredService<ResolveSymbolTool>();
+        var loadSolution = context.GetRequiredService<LoadSolutionTool>();
+        var dynamicPath = Path.Combine(context.TestSolutionDirectory, "ProjectApp", "DynamicDispatchProbe.cs");
+
+        await File.WriteAllTextAsync(dynamicPath, """
+namespace ProjectApp;
+
+public static class DynamicDispatchProbe
+{
+    public static string RunDynamic(object value)
+    {
+        dynamic candidate = value;
+        return candidate.ToString();
+    }
+}
+""", CancellationToken.None);
+
+        var load = await loadSolution.ExecuteAsync(CancellationToken.None, context.SolutionPath);
+
+        load.Error.ShouldBeNone();
+
+        var root = await resolveTool.ExecuteAsync(CancellationToken.None, path: dynamicPath, line: 5, column: 26);
+
+        root.Error.ShouldBeNone();
+        root.Symbol.IsNotNull();
+
+        var result = await traceTool.ExecuteAsync(CancellationToken.None, symbolId: root.Symbol!.SymbolId, direction: "downstream", depth: 1);
+
+        result.Error.ShouldBeNone();
+        result.RootSymbol.IsNotNull();
+        result.Uncertainties.IsNotNull();
+        var uncertainties = result.Uncertainties!;
+        uncertainties.Any(static uncertainty => uncertainty.Category == FlowUncertaintyCategories.DynamicUnresolved).IsTrue();
     }
 }

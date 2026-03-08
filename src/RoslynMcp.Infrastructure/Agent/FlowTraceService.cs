@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.FindSymbols;
 using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
@@ -27,6 +28,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                 Math.Max(request.Depth ?? 2, 1),
                 Array.Empty<CallEdge>(),
                 Array.Empty<FlowTransition>(),
+                Array.Empty<FlowUncertainty>(),
                 directionValidation.Error);
         }
 
@@ -42,6 +44,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                 depth,
                 Array.Empty<CallEdge>(),
                 Array.Empty<FlowTransition>(),
+                Array.Empty<FlowUncertainty>(),
                 AgentErrorInfo.Normalize(root.Error, "Call trace_flow with a resolvable symbolId or source position."));
         }
 
@@ -57,6 +60,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                     depth,
                     Array.Empty<CallEdge>(),
                     Array.Empty<FlowTransition>(),
+                    Array.Empty<FlowUncertainty>(),
                     AgentErrorInfo.Normalize(callers.Error, "Retry trace_flow with a resolvable symbol and supported upstream traversal depth."));
             }
 
@@ -73,6 +77,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                     depth,
                     Array.Empty<CallEdge>(),
                     Array.Empty<FlowTransition>(),
+                    Array.Empty<FlowUncertainty>(),
                     AgentErrorInfo.Normalize(callees.Error, "Retry trace_flow with a resolvable symbol and supported downstream traversal depth."));
             }
 
@@ -89,6 +94,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
                     depth,
                     Array.Empty<CallEdge>(),
                     Array.Empty<FlowTransition>(),
+                    Array.Empty<FlowUncertainty>(),
                     AgentErrorInfo.Normalize(graph.Error, "Retry trace_flow with a resolvable symbol and supported traversal depth."));
             }
 
@@ -97,13 +103,17 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
 
         var filteredEdges = edges.Where(static edge => SourceVisibility.ShouldIncludeInInteractiveTrace(edge.Location.FilePath)).ToArray();
         Dictionary<string, string>? symbolProjects = null;
+        var resultUncertainties = new List<FlowUncertainty>();
 
         var (solution, _) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
         if (solution != null)
         {
+            resultUncertainties.AddRange(await DetectRootBlindspotsAsync(solution, root.Symbol, ct).ConfigureAwait(false));
+
             var symbolFacts = await ResolveSymbolFactsAsync(solution, filteredEdges, ct).ConfigureAwait(false);
             filteredEdges = filteredEdges.Where(edge => ShouldIncludeEdge(edge, symbolFacts)).ToArray();
             symbolProjects = symbolFacts.ToDictionary(pair => pair.Key, pair => pair.Value.ProjectName, StringComparer.Ordinal);
+            filteredEdges = (await EnrichEdgesAsync(solution, filteredEdges, ct).ConfigureAwait(false)).ToArray();
         }
 
         var transitions = filteredEdges
@@ -113,10 +123,107 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
             .OrderByDescending(static group => group.Count())
             .ThenBy(static group => group.Key.From, StringComparer.Ordinal)
             .ThenBy(static group => group.Key.To, StringComparer.Ordinal)
-            .Select(group => new FlowTransition(group.Key.From, group.Key.To, group.Count()))
+            .Select(group => new FlowTransition(group.Key.From, group.Key.To, group.Count(), GetTransitionUncertaintyCategories(group.Key.From, group.Key.To)))
             .ToArray();
 
-        return new TraceFlowResult(root.Symbol, direction, depth, filteredEdges, transitions);
+        return new TraceFlowResult(root.Symbol, direction, depth, filteredEdges, transitions, resultUncertainties);
+    }
+
+    private async Task<IReadOnlyList<CallEdge>> EnrichEdgesAsync(Solution solution, IReadOnlyList<CallEdge> edges, CancellationToken ct)
+    {
+        if (edges.Count == 0)
+        {
+            return edges;
+        }
+
+        var symbolCache = new Dictionary<string, ISymbol?>(StringComparer.Ordinal);
+        var enriched = new List<CallEdge>(edges.Count);
+
+        foreach (var edge in edges)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var target = await ResolveSymbolAsync(solution, edge.ToSymbolId, symbolCache, ct).ConfigureAwait(false);
+            if (target == null)
+            {
+                enriched.Add(edge);
+                continue;
+            }
+
+            var uncertainties = new List<FlowUncertainty>();
+            var possibleTargets = new List<SymbolReference>();
+
+            if (target is IMethodSymbol method)
+            {
+                if (method.ContainingType?.TypeKind == TypeKind.Interface)
+                {
+                    uncertainties.Add(CreateEdgeUncertainty(
+                        FlowUncertaintyCategories.InterfaceDispatch,
+                        "Static analysis resolves this call to an interface member, but runtime dispatch may target any implementing member.",
+                        edge.Location,
+                        edge.ToReference));
+
+                    var implementations = await FindPossibleTargetsAsync(method, solution, ct).ConfigureAwait(false);
+                    possibleTargets.AddRange(implementations);
+                }
+                else if (CanHavePolymorphicTargets(method))
+                {
+                    var implementations = await FindPossibleTargetsAsync(method, solution, ct).ConfigureAwait(false);
+                    if (implementations.Count > 0)
+                    {
+                        uncertainties.Add(CreateEdgeUncertainty(
+                            FlowUncertaintyCategories.PolymorphicInference,
+                            "Static analysis resolves a virtual or abstract member, but runtime dispatch may target an override or concrete implementation.",
+                            edge.Location,
+                            edge.ToReference));
+
+                        possibleTargets.AddRange(implementations);
+                    }
+                }
+            }
+
+            enriched.Add(uncertainties.Count == 0 && possibleTargets.Count == 0
+                ? edge with { Uncertainties = Array.Empty<FlowUncertainty>(), PossibleTargets = Array.Empty<SymbolReference>() }
+                : edge with
+                {
+                    Uncertainties = uncertainties,
+                    PossibleTargets = possibleTargets
+                });
+        }
+
+        return enriched;
+    }
+
+    private async Task<IReadOnlyList<FlowUncertainty>> DetectRootBlindspotsAsync(Solution solution, SymbolDescriptor root, CancellationToken ct)
+    {
+        var symbol = await ResolveSymbolAsync(solution, root.SymbolId, cache: null, ct).ConfigureAwait(false);
+        if (symbol == null)
+        {
+            return Array.Empty<FlowUncertainty>();
+        }
+
+        var uncertainties = new List<FlowUncertainty>();
+        var declarationReference = symbol.ToSymbolReference();
+
+        if (await UsesReflectionAsync(symbol, solution, ct).ConfigureAwait(false))
+        {
+            uncertainties.Add(new FlowUncertainty(
+                FlowUncertaintyCategories.ReflectionBlindspot,
+                "Reflection-based target selection may hide downstream runtime targets from static flow analysis.",
+                declarationReference.DeclarationLocation,
+                declarationReference));
+        }
+
+        if (await UsesDynamicAsync(symbol, solution, ct).ConfigureAwait(false))
+        {
+            uncertainties.Add(new FlowUncertainty(
+                FlowUncertaintyCategories.DynamicUnresolved,
+                "Dynamic binding may hide runtime call targets from static flow analysis.",
+                declarationReference.DeclarationLocation,
+                declarationReference));
+        }
+
+        return uncertainties;
     }
 
     private async Task<FindSymbolResult> ResolveRootSymbolAsync(TraceFlowRequest request, CancellationToken ct)
@@ -238,6 +345,145 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
            && symbolFacts.ContainsKey(edge.ToSymbolId)
            && SourceVisibility.ShouldIncludeInInteractiveTrace(symbolFacts[edge.FromSymbolId].DeclarationPath)
            && SourceVisibility.ShouldIncludeInInteractiveTrace(symbolFacts[edge.ToSymbolId].DeclarationPath);
+
+    private static IReadOnlyList<string> GetTransitionUncertaintyCategories(string fromProject, string toProject)
+    {
+        var categories = new HashSet<string>(StringComparer.Ordinal);
+
+        if (string.Equals(fromProject, UnresolvedProjectLabel, StringComparison.Ordinal)
+            || string.Equals(toProject, UnresolvedProjectLabel, StringComparison.Ordinal))
+        {
+            categories.Add(FlowUncertaintyCategories.UnresolvedProject);
+        }
+
+        if (string.Equals(fromProject, ProjectInferenceDegradedLabel, StringComparison.Ordinal)
+            || string.Equals(toProject, ProjectInferenceDegradedLabel, StringComparison.Ordinal))
+        {
+            categories.Add(FlowUncertaintyCategories.ProjectInferenceDegraded);
+        }
+
+        return categories.Count == 0 ? Array.Empty<string>() : categories.OrderBy(static category => category, StringComparer.Ordinal).ToArray();
+    }
+
+    private async Task<ISymbol?> ResolveSymbolAsync(
+        Solution solution,
+        string symbolId,
+        Dictionary<string, ISymbol?>? cache,
+        CancellationToken ct)
+    {
+        if (cache != null && cache.TryGetValue(symbolId, out var cached))
+        {
+            return cached;
+        }
+
+        foreach (var project in solution.Projects)
+        {
+            ct.ThrowIfCancellationRequested();
+            var compilation = await project.GetCompilationAsync(ct).ConfigureAwait(false);
+            if (compilation == null)
+            {
+                continue;
+            }
+
+            var symbol = SymbolIdentity.Resolve(symbolId, compilation, ct);
+            if (symbol == null)
+            {
+                continue;
+            }
+
+            var resolved = symbol.OriginalDefinition ?? symbol;
+            cache?.Add(symbolId, resolved);
+            return resolved;
+        }
+
+        cache?.Add(symbolId, null);
+        return null;
+    }
+
+    private static bool CanHavePolymorphicTargets(IMethodSymbol method)
+        => method.IsAbstract || ((method.IsVirtual || method.IsOverride) && !method.IsSealed);
+
+    private async Task<IReadOnlyList<SymbolReference>> FindPossibleTargetsAsync(IMethodSymbol method, Solution solution, CancellationToken ct)
+    {
+        var implementations = await SymbolFinder.FindImplementationsAsync(method, solution, cancellationToken: ct).ConfigureAwait(false);
+        return implementations
+            .Select(static implementation => implementation.OriginalDefinition ?? implementation)
+            .Where(static implementation => implementation.Kind == SymbolKind.Method)
+            .Where(static implementation => implementation.Locations.Any(location => location.IsInSource))
+            .Where(static implementation => SourceVisibility.ShouldIncludeInInteractiveTrace(implementation.GetDeclarationPosition().FilePath))
+            .OrderBy(static implementation => SymbolIdentity.CreateId(implementation), StringComparer.Ordinal)
+            .Select(static implementation => implementation.ToSymbolReference())
+            .DistinctBy(static reference => reference.SymbolId)
+            .ToArray();
+    }
+
+    private static FlowUncertainty CreateEdgeUncertainty(string category, string message, SourceLocation location, SymbolReference? relatedSymbol)
+        => new(category, message, location, relatedSymbol);
+
+    private async Task<bool> UsesReflectionAsync(ISymbol symbol, Solution solution, CancellationToken ct)
+    {
+        foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
+        {
+            var node = await syntaxReference.GetSyntaxAsync(ct).ConfigureAwait(false);
+            var document = solution.GetDocument(node.SyntaxTree);
+            if (document == null)
+            {
+                continue;
+            }
+
+            var model = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
+            if (model == null)
+            {
+                continue;
+            }
+
+            foreach (var invocation in node.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>())
+            {
+                var target = model.GetSymbolInfo(invocation, ct).Symbol as IMethodSymbol;
+                if (target == null)
+                {
+                    continue;
+                }
+
+                var containingType = target.ContainingType?.ToDisplayString();
+                if (containingType is "System.Type" or "System.Reflection.MethodInfo" or "System.Reflection.PropertyInfo" or "System.Reflection.FieldInfo" or "System.Activator")
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<bool> UsesDynamicAsync(ISymbol symbol, Solution solution, CancellationToken ct)
+    {
+        foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
+        {
+            var node = await syntaxReference.GetSyntaxAsync(ct).ConfigureAwait(false);
+            var document = solution.GetDocument(node.SyntaxTree);
+            if (document == null)
+            {
+                continue;
+            }
+
+            var model = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
+            if (model == null)
+            {
+                continue;
+            }
+
+            foreach (var descendant in node.DescendantNodesAndSelf())
+            {
+                if (model.GetTypeInfo(descendant, ct).Type?.TypeKind == TypeKind.Dynamic)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private static string? SelectDeclarationPath(IReadOnlyList<Location> locations)
     {

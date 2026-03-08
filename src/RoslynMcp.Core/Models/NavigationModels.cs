@@ -98,7 +98,10 @@ public sealed record CallEdge(
     string ToSymbolId,
     SourceLocation Location,
     SymbolReference? FromReference = null,
-    SymbolReference? ToReference = null);
+    SymbolReference? ToReference = null,
+    string EvidenceKind = FlowEvidenceKinds.DirectStatic,
+    IReadOnlyList<FlowUncertainty>? Uncertainties = null,
+    IReadOnlyList<SymbolReference>? PossibleTargets = null);
 
 public sealed record GetCallGraphRequest(string SymbolId, string Direction, int? MaxDepth = null);
 
