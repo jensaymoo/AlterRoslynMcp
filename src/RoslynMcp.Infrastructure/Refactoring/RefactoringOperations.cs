@@ -676,18 +676,13 @@ internal sealed class RenameOperations
 
     private async Task<RenameSymbolResult> RenameSymbolAsync(RenameSymbolRequest request, CancellationToken ct, bool allowReloadFallback)
     {
-        if (request == null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
 
         ct.ThrowIfCancellationRequested();
 
         var invalidInputError = RefactoringOperationExtensions.TryCreateInvalidSymbolIdError(request.SymbolId, "rename-symbol");
         if (invalidInputError != null)
-        {
             return RefactoringOperationExtensions.CreateErrorResult(invalidInputError);
-        }
 
         if (string.IsNullOrWhiteSpace(request.NewName))
         {
@@ -702,8 +697,7 @@ internal sealed class RenameOperations
             var (solution, error) = await _owner.TryGetSolutionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {
-                return RefactoringOperationExtensions.CreateErrorResult(error ??
-                    new ErrorInfo(ErrorCodes.InternalError, "Unable to access the current solution."));
+                return RefactoringOperationExtensions.CreateErrorResult(error ?? new ErrorInfo(ErrorCodes.InternalError, "Unable to access the current solution."));
             }
 
             var symbol = await _owner.ResolveSymbolAsync(request.SymbolId, solution, ct).ConfigureAwait(false);
