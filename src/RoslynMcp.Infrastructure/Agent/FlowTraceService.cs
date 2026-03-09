@@ -184,7 +184,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
         return enriched;
     }
 
-    private async Task<IReadOnlyList<FlowUncertainty>> DetectRootBlindspotsAsync(Solution solution, SymbolDescriptor root, CancellationToken ct)
+    private static async Task<IReadOnlyList<FlowUncertainty>> DetectRootBlindspotsAsync(Solution solution, SymbolDescriptor root, CancellationToken ct)
     {
         var symbol = await ResolveSymbolAsync(solution, root.SymbolId, cache: null, ct).ConfigureAwait(false);
         if (symbol == null)
@@ -334,7 +334,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
         return categories.Count == 0 ? [] : categories.OrderBy(static category => category, StringComparer.Ordinal).ToArray();
     }
 
-    private async Task<ISymbol?> ResolveSymbolAsync(
+    private static async Task<ISymbol?> ResolveSymbolAsync(
         Solution solution,
         string symbolId,
         Dictionary<string, ISymbol?>? cache,
@@ -382,7 +382,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
     private static FlowUncertainty CreateEdgeUncertainty(string category, string message, SourceLocation location, SymbolReference? relatedSymbol)
         => new(category, message, location, relatedSymbol);
 
-    private async Task<bool> UsesReflectionAsync(ISymbol symbol, Solution solution, CancellationToken ct)
+    private static async Task<bool> UsesReflectionAsync(ISymbol symbol, Solution solution, CancellationToken ct)
     {
         foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
         {
@@ -408,7 +408,7 @@ public sealed class FlowTraceService(INavigationService navigationService, IRosl
         return false;
     }
 
-    private async Task<bool> UsesDynamicAsync(ISymbol symbol, Solution solution, CancellationToken ct)
+    private static async Task<bool> UsesDynamicAsync(ISymbol symbol, Solution solution, CancellationToken ct)
     {
         foreach (var syntaxReference in symbol.DeclaringSyntaxReferences)
         {

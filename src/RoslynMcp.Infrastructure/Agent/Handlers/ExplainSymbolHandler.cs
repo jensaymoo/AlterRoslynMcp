@@ -6,59 +6,34 @@ using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure.Agent.Handlers;
 
-internal sealed class ExplainSymbolHandler
+internal sealed class ExplainSymbolHandler(
+    CodeUnderstandingQueryService queries,
+    INavigationService navigationService,
+    IRoslynSolutionAccessor solutionAccessor,
+    ISymbolLookupService symbolLookupService)
 {
-    private readonly CodeUnderstandingQueryService _queries;
-    private readonly INavigationService _navigationService;
-    private readonly IRoslynSolutionAccessor _solutionAccessor;
-    private readonly ISymbolLookupService _symbolLookupService;
-
-    public ExplainSymbolHandler(
-        CodeUnderstandingQueryService queries,
-        INavigationService navigationService,
-        IRoslynSolutionAccessor solutionAccessor,
-        ISymbolLookupService symbolLookupService)
-    {
-        _queries = queries;
-        _navigationService = navigationService;
-        _solutionAccessor = solutionAccessor;
-        _symbolLookupService = symbolLookupService;
-    }
-
     public async Task<ExplainSymbolResult> HandleAsync(ExplainSymbolRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (_, bootstrapError) = await _queries.GetCurrentSolutionWithAutoBootstrapAsync(
+        var (_, bootstrapError) = await queries.GetCurrentSolutionWithAutoBootstrapAsync(
             "Call load_solution first to select a solution before explaining symbols.",
             request.Path,
             ct).ConfigureAwait(false);
+        
         if (bootstrapError != null)
-        {
-            return new ExplainSymbolResult(
-                null,
-                string.Empty,
-                string.Empty,
-                Array.Empty<string>(),
-                Array.Empty<ImpactHint>(),
-                bootstrapError);
-        }
+            return new ExplainSymbolResult(null, string.Empty, string.Empty, [], [], bootstrapError);
 
-        var symbolResult = await _queries.ResolveSymbolAtRequestAsync(request.SymbolId, request.Path, request.Line, request.Column, ct).ConfigureAwait(false);
+        var symbolResult = await queries.ResolveSymbolAtRequestAsync(request.SymbolId, request.Path, request.Line, request.Column, ct).ConfigureAwait(false);
         if (symbolResult.Symbol == null)
         {
-            return new ExplainSymbolResult(
-                null,
-                string.Empty,
-                string.Empty,
-                Array.Empty<string>(),
-                Array.Empty<ImpactHint>(),
+            return new ExplainSymbolResult(null, string.Empty, string.Empty, [], [],
                 AgentErrorInfo.Normalize(symbolResult.Error, "Call explain_symbol with symbolId or path+line+column for an existing symbol."));
         }
 
-        var signature = await _navigationService.GetSignatureAsync(new GetSignatureRequest(symbolResult.Symbol.SymbolId), ct).ConfigureAwait(false);
-        var outline = await _navigationService.GetSymbolOutlineAsync(new GetSymbolOutlineRequest(symbolResult.Symbol.SymbolId, 1), ct).ConfigureAwait(false);
-        var references = await _navigationService.FindReferencesAsync(new FindReferencesRequest(symbolResult.Symbol.SymbolId), ct).ConfigureAwait(false);
+        var signature = await navigationService.GetSignatureAsync(new GetSignatureRequest(symbolResult.Symbol.SymbolId), ct).ConfigureAwait(false);
+        var outline = await navigationService.GetSymbolOutlineAsync(new GetSymbolOutlineRequest(symbolResult.Symbol.SymbolId, 1), ct).ConfigureAwait(false);
+        var references = await navigationService.FindReferencesAsync(new FindReferencesRequest(symbolResult.Symbol.SymbolId), ct).ConfigureAwait(false);
 
         var keyReferences = references.References
             .Take(5)
@@ -91,7 +66,7 @@ internal sealed class ExplainSymbolHandler
         FindReferencesResult references,
         CancellationToken ct)
     {
-        var (solution, error) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
+        var (solution, error) = await solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
         if (solution == null || error != null)
         {
             return outline.Members.Count == 0
@@ -99,7 +74,7 @@ internal sealed class ExplainSymbolHandler
                 : $"{descriptor.Kind} '{descriptor.Name}' with {outline.Members.Count} top-level members.";
         }
 
-        var symbol = await _symbolLookupService.ResolveSymbolAsync(descriptor.SymbolId, solution, ct).ConfigureAwait(false);
+        var symbol = await symbolLookupService.ResolveSymbolAsync(descriptor.SymbolId, solution, ct).ConfigureAwait(false);
         if (symbol == null)
         {
             return outline.Members.Count == 0
@@ -197,20 +172,16 @@ internal sealed class ExplainSymbolHandler
         foreach (var member in symbol.GetMembers().OfType<IFieldSymbol>())
         {
             if (seen.Add(member.Type.Name) && !string.IsNullOrWhiteSpace(member.Type.Name))
-            {
                 yield return member.Type.Name;
-            }
         }
 
         foreach (var member in symbol.GetMembers().OfType<IPropertySymbol>())
         {
             if (seen.Add(member.Type.Name) && !string.IsNullOrWhiteSpace(member.Type.Name))
-            {
                 yield return member.Type.Name;
-            }
         }
     }
 
     private static string NormalizeNamespace(INamespaceSymbol? symbol)
-        => symbol == null || symbol.IsGlobalNamespace ? "the global namespace" : symbol.ToDisplayString();
+        => symbol?.IsGlobalNamespace != false ? "the global namespace" : symbol.ToDisplayString();
 }

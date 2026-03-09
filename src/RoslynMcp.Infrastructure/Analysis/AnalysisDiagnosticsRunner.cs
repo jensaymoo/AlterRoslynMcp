@@ -7,18 +7,12 @@ using System.Collections.Immutable;
 
 namespace RoslynMcp.Infrastructure.Analysis;
 
-internal sealed class AnalysisDiagnosticsRunner : IAnalysisDiagnosticsRunner
+internal sealed class AnalysisDiagnosticsRunner(IRoslynAnalyzerCatalog analyzerCatalog, ILogger? logger = null) : IAnalysisDiagnosticsRunner
 {
-    private static bool s_analyzerLoadLogged;
+    private static bool _analyzerLoadLogged;
 
-    private readonly IRoslynAnalyzerCatalog _analyzerCatalog;
-    private readonly ILogger _logger;
-
-    public AnalysisDiagnosticsRunner(IRoslynAnalyzerCatalog analyzerCatalog, ILogger? logger = null)
-    {
-        _analyzerCatalog = analyzerCatalog ?? throw new ArgumentNullException(nameof(analyzerCatalog));
-        _logger = logger ?? NullLogger.Instance;
-    }
+    private readonly IRoslynAnalyzerCatalog _analyzerCatalog = analyzerCatalog ?? throw new ArgumentNullException(nameof(analyzerCatalog));
+    private readonly ILogger _logger = logger ?? NullLogger.Instance;
 
     public Task<IReadOnlyList<DiagnosticItem>> RunDiagnosticsAsync(Solution solution, CancellationToken ct)
         => RunDiagnosticsAsync(solution.Projects, ct);
@@ -27,20 +21,18 @@ internal sealed class AnalysisDiagnosticsRunner : IAnalysisDiagnosticsRunner
     {
         var diagnostics = new List<DiagnosticItem>();
         var analyzerEntry = _analyzerCatalog.GetCatalog();
-        if (analyzerEntry.Error != null && !s_analyzerLoadLogged)
+        if (analyzerEntry.Error != null && !_analyzerLoadLogged)
         {
             _logger.LogWarning(analyzerEntry.Error, "Failed to load Roslynator analyzers.");
-            s_analyzerLoadLogged = true;
+            _analyzerLoadLogged = true;
         }
 
         foreach (var project in projects.OrderBy(static p => p.FilePath ?? p.Name, StringComparer.Ordinal))
         {
             ct.ThrowIfCancellationRequested();
-            var compilation = await project.GetCompilationAsync(ct).ConfigureAwait(false);
-            if (compilation == null)
-            {
+            
+            if(await project.GetCompilationAsync(ct).ConfigureAwait(false) is not { } compilation)
                 continue;
-            }
 
             ImmutableArray<Diagnostic> projectDiagnostics;
             if (!analyzerEntry.Analyzers.IsDefaultOrEmpty)
@@ -60,10 +52,7 @@ internal sealed class AnalysisDiagnosticsRunner : IAnalysisDiagnosticsRunner
                 projectDiagnostics = compilation.GetDiagnostics(ct);
             }
 
-            foreach (var diagnostic in projectDiagnostics)
-            {
-                diagnostics.Add(CreateDiagnosticItem(diagnostic));
-            }
+            diagnostics.AddRange(projectDiagnostics.Select(CreateDiagnosticItem));
         }
 
         return diagnostics;

@@ -22,10 +22,4 @@ internal static class FlowTraceExtensions
                 ("expected", "upstream|downstream|both")))
         };
     }
-
-    public static string ExtractProjectFromSymbolId(this string symbolId)
-    {
-        var separator = symbolId.IndexOf(':');
-        return separator > 0 ? symbolId[..separator] : "unknown";
-    }
 }

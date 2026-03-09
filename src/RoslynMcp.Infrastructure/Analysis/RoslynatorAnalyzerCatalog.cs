@@ -14,7 +14,7 @@ internal sealed class RoslynatorAnalyzerCatalog : IRoslynAnalyzerCatalog
     private const string RoslynatorAnalyzerPathEnvVar = "RoslynMcp__RoslynatorAnalyzerPath";
 
     private static readonly string[] RoslynatorAnalyzerRelativePathSegments =
-        { "analyzers", "dotnet", "roslyn4.7", "cs", RoslynatorAnalyzerFilename };
+        ["analyzers", "dotnet", "roslyn4.7", "cs", RoslynatorAnalyzerFilename];
 
     private static readonly Lazy<(ImmutableArray<DiagnosticAnalyzer> Analyzers, Exception? Error)> s_roslynatorAnalyzers
         = new(LoadAnalyzers);

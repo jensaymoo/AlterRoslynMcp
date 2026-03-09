@@ -19,9 +19,7 @@ public static partial class CodeUnderstandingExtensions
         var normalizedQualifiedName = qualifiedName.NormalizeQualifiedName();
         var query = QualifiedSymbolQuery.Parse(normalizedQualifiedName);
         if (string.IsNullOrWhiteSpace(query.LookupName))
-        {
-            return Array.Empty<ResolveSymbolCandidate>();
-        }
+            return [];
 
         var candidates = new List<(ISymbol Symbol, string ProjectName)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -40,12 +38,9 @@ public static partial class CodeUnderstandingExtensions
             {
                 var normalizedSymbol = symbol.OriginalDefinition ?? symbol;
                 var symbolId = SymbolIdentity.CreateId(normalizedSymbol);
-                var candidateKey = symbolId;
 
-                if (!seen.Add(candidateKey))
-                {
+                if (!seen.Add(symbolId))
                     continue;
-                }
 
                 candidates.Add((normalizedSymbol, normalizedSymbol.ResolveProjectName(project)));
             }
@@ -54,15 +49,12 @@ public static partial class CodeUnderstandingExtensions
         var strictMatches = candidates
             .Where(match => query.Matches(match.Symbol))
             .ToArray();
+
         if (strictMatches.Length > 0)
-        {
             return OrderResolveSymbolCandidates(strictMatches, query.LookupName);
-        }
 
         if (!query.IsShortNameOnly)
-        {
-            return Array.Empty<ResolveSymbolCandidate>();
-        }
+            return [];
 
         var caseSensitiveMatches = candidates
             .Where(match => string.Equals(match.Symbol.Name, query.LookupName, StringComparison.Ordinal))
@@ -138,7 +130,7 @@ public static partial class CodeUnderstandingExtensions
                 ("field", "project selector"),
                 ("provided", provided),
                 ("projectIdScope", normalizedId == null ? null : "snapshot-local"));
-            return Array.Empty<Project>();
+            return [];
         }
 
         if (matches.Length > 1)
@@ -150,7 +142,7 @@ public static partial class CodeUnderstandingExtensions
                 "Provide projectPath or projectId to uniquely identify the project.",
                 ("field", "project selector"),
                 ("matches", names));
-            return Array.Empty<Project>();
+            return [];
         }
 
         error = null;

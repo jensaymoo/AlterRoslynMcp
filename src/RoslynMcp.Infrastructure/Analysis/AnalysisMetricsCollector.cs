@@ -5,14 +5,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace RoslynMcp.Infrastructure.Analysis;
 
-internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
+internal sealed class AnalysisMetricsCollector(IRoslynSymbolIdFactory symbolIdFactory) : IAnalysisMetricsCollector
 {
-    private readonly IRoslynSymbolIdFactory _symbolIdFactory;
-
-    public AnalysisMetricsCollector(IRoslynSymbolIdFactory symbolIdFactory)
-    {
-        _symbolIdFactory = symbolIdFactory ?? throw new ArgumentNullException(nameof(symbolIdFactory));
-    }
+    private readonly IRoslynSymbolIdFactory _symbolIdFactory = symbolIdFactory ?? throw new ArgumentNullException(nameof(symbolIdFactory));
 
     public Task<IReadOnlyList<MetricItem>> CollectMetricsAsync(Solution solution, string scope, string? path, CancellationToken ct)
         => CollectMetricsAsync(solution.Projects, scope, path, ct);
@@ -34,53 +29,29 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
             {
                 ct.ThrowIfCancellationRequested();
                 if (!scopeResolver.IsDocumentInScope(document, scope, path))
-                {
                     continue;
-                }
 
-                var syntaxRoot = await document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
-                if (syntaxRoot == null)
-                {
+                if(await document.GetSyntaxRootAsync(ct).ConfigureAwait(false) is not { } syntaxRoot)
                     continue;
-                }
 
-                var semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
-                if (semanticModel == null)
-                {
+                if(await document.GetSemanticModelAsync(ct).ConfigureAwait(false) is not { } semanticModel)
                     continue;
-                }
-
+                
                 var walker = new MemberMetricWalker(semanticModel, _symbolIdFactory, ct);
                 walker.Visit(syntaxRoot);
 
-                foreach (var metric in walker.Metrics)
-                {
-                    if (seen.Add(metric.SymbolId))
-                    {
-                        metrics.Add(metric);
-                    }
-                }
+                metrics.AddRange(walker.Metrics.Where(metric => seen.Add(metric.SymbolId)));
             }
         }
 
         return metrics;
     }
 
-    private sealed class MemberMetricWalker : CSharpSyntaxWalker
+    private sealed class MemberMetricWalker(SemanticModel semanticModel, IRoslynSymbolIdFactory symbolIdFactory, CancellationToken cancellationToken)
+        : CSharpSyntaxWalker(SyntaxWalkerDepth.Node)
     {
-        private readonly SemanticModel _semanticModel;
-        private readonly IRoslynSymbolIdFactory _symbolIdFactory;
-        private readonly CancellationToken _cancellationToken;
         private readonly List<MetricItem> _metrics = new();
         private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
-
-        public MemberMetricWalker(SemanticModel semanticModel, IRoslynSymbolIdFactory symbolIdFactory, CancellationToken cancellationToken)
-            : base(SyntaxWalkerDepth.Node)
-        {
-            _semanticModel = semanticModel;
-            _symbolIdFactory = symbolIdFactory;
-            _cancellationToken = cancellationToken;
-        }
 
         public IReadOnlyList<MetricItem> Metrics => _metrics;
 
@@ -104,9 +75,9 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
 
         private void CollectMetric(SyntaxNode node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var symbol = _semanticModel.GetDeclaredSymbol(node, _cancellationToken) as IMethodSymbol;
+            var symbol = semanticModel.GetDeclaredSymbol(node, cancellationToken) as IMethodSymbol;
             if (symbol == null)
             {
                 return;
@@ -117,7 +88,7 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
                 return;
             }
 
-            var symbolId = _symbolIdFactory.CreateId(symbol);
+            var symbolId = symbolIdFactory.CreateId(symbol);
             if (!_seen.Add(symbolId))
             {
                 return;
@@ -126,7 +97,7 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
             int? complexity = null;
             if (HasBody(node))
             {
-                var walker = new CyclomaticComplexityWalker(_cancellationToken);
+                var walker = new CyclomaticComplexityWalker(cancellationToken);
                 switch (node)
                 {
                     case BaseMethodDeclarationSyntax method:
@@ -162,71 +133,65 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
         }
     }
 
-    private sealed class CyclomaticComplexityWalker : CSharpSyntaxWalker
+    private sealed class CyclomaticComplexityWalker(CancellationToken cancellationToken)
+        : CSharpSyntaxWalker(SyntaxWalkerDepth.Node)
     {
-        private readonly CancellationToken _cancellationToken;
         private int _count = 1;
-
-        public CyclomaticComplexityWalker(CancellationToken cancellationToken)
-            : base(SyntaxWalkerDepth.Node)
-        {
-            _cancellationToken = cancellationToken;
-        }
 
         public int Complexity => Math.Max(_count, 1);
 
         public override void VisitIfStatement(IfStatementSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitIfStatement(node);
         }
 
         public override void VisitForStatement(ForStatementSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitForStatement(node);
         }
 
         public override void VisitForEachStatement(ForEachStatementSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitForEachStatement(node);
         }
 
         public override void VisitWhileStatement(WhileStatementSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitWhileStatement(node);
         }
 
         public override void VisitDoStatement(DoStatementSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitDoStatement(node);
         }
 
         public override void VisitSwitchSection(SwitchSectionSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count += node.Labels.Count;
             base.VisitSwitchSection(node);
         }
 
         public override void VisitConditionalExpression(ConditionalExpressionSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitConditionalExpression(node);
         }
 
         public override void VisitBinaryExpression(BinaryExpressionSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             if (node.IsKind(SyntaxKind.LogicalAndExpression) || node.IsKind(SyntaxKind.LogicalOrExpression))
             {
                 _count++;
@@ -237,14 +202,14 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
 
         public override void VisitCatchClause(CatchClauseSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitCatchClause(node);
         }
 
         public override void VisitSwitchExpressionArm(SwitchExpressionArmSyntax node)
         {
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             _count++;
             base.VisitSwitchExpressionArm(node);
         }
@@ -256,7 +221,7 @@ internal sealed class AnalysisMetricsCollector : IAnalysisMetricsCollector
                 return;
             }
 
-            _cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             base.Visit(node);
         }
     }

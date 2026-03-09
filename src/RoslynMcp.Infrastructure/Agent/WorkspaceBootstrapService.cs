@@ -4,23 +4,13 @@ using RoslynMcp.Infrastructure.Workspace;
 
 namespace RoslynMcp.Infrastructure.Agent;
 
-public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
+public sealed class WorkspaceBootstrapService(
+    ISolutionSessionService solutionSessionService,
+    IAnalysisService analysisService,
+    IRoslynSolutionAccessor solutionAccessor)
+    : IWorkspaceBootstrapService
 {
     private static readonly WorkspaceReadiness DefaultReadiness = new(WorkspaceReadinessStates.Ready, Array.Empty<string>());
-
-    private readonly ISolutionSessionService _solutionSessionService;
-    private readonly IAnalysisService _analysisService;
-    private readonly IRoslynSolutionAccessor _solutionAccessor;
-
-    public WorkspaceBootstrapService(
-        ISolutionSessionService solutionSessionService,
-        IAnalysisService analysisService,
-        IRoslynSolutionAccessor solutionAccessor)
-    {
-        _solutionSessionService = solutionSessionService;
-        _analysisService = analysisService;
-        _solutionAccessor = solutionAccessor;
-    }
 
     public async Task<LoadSolutionResult> LoadSolutionAsync(LoadSolutionRequest request, CancellationToken ct)
     {
@@ -41,27 +31,27 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
                 AgentErrorInfo.Normalize(discoveryError, "Provide a valid solution path or run load_solution from a folder containing a .sln or .slnx file."));
         }
 
-        var select = await _solutionSessionService.SelectSolutionAsync(new SelectSolutionRequest(solutionPath), ct).ConfigureAwait(false);
+        var select = await solutionSessionService.SelectSolutionAsync(new SelectSolutionRequest(solutionPath), ct).ConfigureAwait(false);
         if (select.Error != null)
         {
             return new LoadSolutionResult(
                 null,
                 string.Empty,
                 string.Empty,
-                Array.Empty<ProjectSummary>(),
+                [],
                 new DiagnosticsSummary(0, 0, 0, 0),
                 DefaultReadiness,
                 AgentErrorInfo.Normalize(select.Error, "Provide a valid .sln or .slnx path and retry load_solution."));
         }
 
-        var (solution, currentError) = await _solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
+        var (solution, currentError) = await solutionAccessor.GetCurrentSolutionAsync(ct).ConfigureAwait(false);
         if (solution == null)
         {
             return new LoadSolutionResult(
                 select.SelectedSolutionPath,
                 string.Empty,
                 string.Empty,
-                Array.Empty<ProjectSummary>(),
+                [],
                 new DiagnosticsSummary(0, 0, 0, 0),
                 DefaultReadiness,
                 AgentErrorInfo.Normalize(currentError, "Retry load_solution after the workspace/session is available."));
@@ -72,11 +62,11 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
             .Select(static p => new ProjectSummary(p.Name, p.FilePath))
             .ToArray();
 
-        var baseline = await _analysisService.AnalyzeScopeAsync(new AnalyzeScopeRequest(AnalysisScopes.Solution), ct).ConfigureAwait(false);
+        var baseline = await analysisService.AnalyzeScopeAsync(new AnalyzeScopeRequest(AnalysisScopes.Solution), ct).ConfigureAwait(false);
         var diagnostics = baseline.Diagnostics.ToLoadBaselineDiagnosticsSummary();
         var readiness = AssessReadiness(solution, baseline.Diagnostics);
 
-        var (workspaceVersion, versionError) = await _solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
+        var (workspaceVersion, versionError) = await solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
         if (versionError != null)
         {
             return new LoadSolutionResult(select.SelectedSolutionPath,
@@ -108,15 +98,12 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
         if (missingDocuments.Length > 0)
         {
             var degradedReasons = new List<string>();
+
             if (missingGeneratedDocuments.Length > 0)
-            {
                 degradedReasons.Add("missing_artifacts");
-            }
 
             if (missingDocuments.Length > missingGeneratedDocuments.Length)
-            {
                 degradedReasons.Add("missing_documents");
-            }
 
             return new WorkspaceReadiness(
                 WorkspaceReadinessStates.DegradedMissingArtifacts,
@@ -141,12 +128,10 @@ public sealed class WorkspaceBootstrapService : IWorkspaceBootstrapService
     private async Task<(string? Path, ErrorInfo? Error)> ResolveSolutionPathAsync(string? hint, CancellationToken ct)
     {
         if (IsExplicitSolutionPath(hint))
-        {
             return (hint, null);
-        }
 
         var root = string.IsNullOrWhiteSpace(hint) ? Directory.GetCurrentDirectory() : hint;
-        var discovered = await _solutionSessionService.DiscoverSolutionsAsync(new DiscoverSolutionsRequest(root), ct).ConfigureAwait(false);
+        var discovered = await solutionSessionService.DiscoverSolutionsAsync(new DiscoverSolutionsRequest(root), ct).ConfigureAwait(false);
         if (discovered.Error != null)
         {
             return (null, discovered.Error);
