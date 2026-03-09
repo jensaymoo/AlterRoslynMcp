@@ -62,6 +62,28 @@ public sealed class ListTypesToolTests(SharedSandboxFixture fixture, ITestOutput
     }
 
     [Fact]
+    public async Task ListTypesAsync_WithoutIncludeSummary_KeepsSummariesOmitted()
+    {
+        var project = Context.GetProject("ProjectCore");
+        var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class");
+
+        result.Error.ShouldBeNone();
+        result.Types.Single(static type => type.DisplayName == "Documentation").Summary.IsNull();
+    }
+
+    [Fact]
+    public async Task ListTypesAsync_WithIncludeSummary_ReturnsTypeSummaryOnlyWhenAvailable()
+    {
+        var project = Context.GetProject("ProjectCore");
+        var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, kind: "class", includeSummary: true);
+
+        result.Error.ShouldBeNone();
+        result.Types.Single(static type => type.DisplayName == "Documentation").Summary
+            .Is("Documentation service for testing XML comment parsing. Provides summary, returns, and parameter documentation.");
+        result.Types.Single(static type => type.DisplayName == "BaseClass").Summary.IsNull();
+    }
+
+    [Fact]
     public async Task ListTypesAsync_WithAccessibilityFilter_ReturnsNoInternalTypes()
     {
         var project = Context.GetProject("ProjectCore");
@@ -76,7 +98,7 @@ public sealed class ListTypesToolTests(SharedSandboxFixture fixture, ITestOutput
         var project = Context.GetProject("ProjectCore");
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectName: project.Name, limit: 4, offset: 5);
 
-        result.ShouldMatchTypes(14, "WorkerA", "WorkerB", "IFactory<T>", "IOperation<TInput, TResult>");
+        result.ShouldMatchTypes(15, "StepEventArgs", "WorkerA", "WorkerB", "IFactory<T>");
     }
 
     [Fact]

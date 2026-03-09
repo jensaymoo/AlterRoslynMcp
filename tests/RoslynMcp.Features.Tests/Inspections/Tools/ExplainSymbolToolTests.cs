@@ -11,6 +11,34 @@ public sealed class ExplainSymbolToolTests(SharedSandboxFixture fixture, ITestOu
     : SharedToolTests<ExplainSymbolTool>(fixture, output)
 {
     [Fact]
+    public async Task ExplainSymbolAsync_WithDocumentedMethod_IncludesStructuredDocumentation()
+    {
+        var result = await Sut.ExecuteAsync(CancellationToken.None, path: DocumentationPath, line: 72, column: 19);
+
+        result.Error.ShouldBeNone();
+        result.Symbol.IsNotNull();
+        result.Symbol!.Name.Is("MixedReferences");
+        result.Documentation.IsNotNull();
+        result.Documentation!.Summary.Is("Method with both x and System.String references.");
+        result.Documentation.Returns.Is("The string representation.");
+        result.Documentation.Parameters.IsNotNull();
+        result.Documentation.Parameters!.Count.Is(1);
+        result.Documentation.Parameters[0].Name.Is("x");
+        result.Documentation.Parameters[0].Description.Is("The x parameter.");
+    }
+
+    [Fact]
+    public async Task ExplainSymbolAsync_WithUndocumentedMethod_OmitsDocumentation()
+    {
+        var result = await Sut.ExecuteAsync(CancellationToken.None, path: DocumentationPath, line: 86, column: 17);
+
+        result.Error.ShouldBeNone();
+        result.Symbol.IsNotNull();
+        result.Symbol!.Name.Is("NoDocumentation");
+        result.Documentation.IsNull();
+    }
+
+    [Fact]
     public async Task ExplainSymbolAsync_WithSourcePosition_ReturnsExplanation()
     {
         var result = await Sut.ExecuteAsync(CancellationToken.None, path: AppOrchestratorPath, line: 6, column: 21);
