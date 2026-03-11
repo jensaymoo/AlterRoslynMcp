@@ -89,25 +89,6 @@ internal sealed class ReplaceMethodBodyOperations
                 .GetDeltaAsync(solution, updatedSolution, target.Document.Id, ct)
                 .ConfigureAwait(false);
 
-            var resolvedMethod = await _owner.ResolveSymbolAsync(request.TargetMethodSymbolId, updatedSolution, ct).ConfigureAwait(false) as IMethodSymbol;
-            if (resolvedMethod == null)
-            {
-                return new ReplaceMethodBodyResult(
-                    "failed",
-                    changedFiles,
-                    targetMethodSymbolId,
-                    null,
-                    diagnosticsDelta,
-                    RefactoringOperationExtensions.CreateError(
-                        ErrorCodes.CreatedSymbolUnresolved,
-                        "The method could not be resolved after replacing its body.",
-                        ("targetMethodSymbolId", targetMethodSymbolId),
-                        ("operation", "replace_method_body")));
-            }
-
-            var resolvedMethodInternalId = RefactoringSymbolIdentity.CreateId(resolvedMethod);
-            targetInternalSymbolId.Update(resolvedMethodInternalId);
-
             var (applyVersion, versionError) = await _owner._solutionAccessor.GetWorkspaceVersionAsync(ct).ConfigureAwait(false);
             if (versionError != null)
             {
@@ -144,6 +125,25 @@ internal sealed class ReplaceMethodBodyOperations
                         ("targetMethodSymbolId", targetMethodSymbolId),
                         ("operation", "replace_method_body")));
             }
+
+            var resolvedMethod = await _owner.ResolveSymbolAsync(request.TargetMethodSymbolId, updatedSolution, ct).ConfigureAwait(false) as IMethodSymbol;
+            if (resolvedMethod == null)
+            {
+                return new ReplaceMethodBodyResult(
+                    "failed",
+                    changedFiles,
+                    targetMethodSymbolId,
+                    null,
+                    diagnosticsDelta,
+                    RefactoringOperationExtensions.CreateError(
+                        ErrorCodes.CreatedSymbolUnresolved,
+                        "The method could not be resolved after replacing its body.",
+                        ("targetMethodSymbolId", targetMethodSymbolId),
+                        ("operation", "replace_method_body")));
+            }
+
+            var resolvedMethodInternalId = RefactoringSymbolIdentity.CreateId(resolvedMethod);
+            targetInternalSymbolId.Update(resolvedMethodInternalId);
 
             return new ReplaceMethodBodyResult(
                 "applied",

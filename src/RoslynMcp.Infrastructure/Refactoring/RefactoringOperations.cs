@@ -759,12 +759,6 @@ internal sealed class RenameOperations
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToList();
-            var renamedSymbol = await _owner.TryResolveRenamedSymbolAsync(renamedSolution, request.NewName, declarationKeys, ct)
-                .ConfigureAwait(false);
-            var renamedSymbolInternalId = renamedSymbol != null ? RefactoringSymbolIdentity.CreateId(renamedSymbol) : RefactoringSymbolIdentity.CreateId(symbol);
-            symbolInternalId.Update(renamedSymbolInternalId);
-            var renamedSymbolId = symbolId;
-
             var (applied, applyError) = await _owner._solutionAccessor.TryApplySolutionAsync(renamedSolution, ct).ConfigureAwait(false);
             if (!applied)
             {
@@ -784,6 +778,12 @@ internal sealed class RenameOperations
                         ("newName", request.NewName),
                         ("operation", "rename-symbol")));
             }
+
+            var renamedSymbol = await _owner.TryResolveRenamedSymbolAsync(renamedSolution, request.NewName, declarationKeys, ct)
+                .ConfigureAwait(false);
+            var renamedSymbolInternalId = renamedSymbol != null ? RefactoringSymbolIdentity.CreateId(renamedSymbol) : RefactoringSymbolIdentity.CreateId(symbol);
+            symbolInternalId.Update(renamedSymbolInternalId);
+            var renamedSymbolId = symbolId;
 
             return new RenameSymbolResult(
                 renamedSymbolId,

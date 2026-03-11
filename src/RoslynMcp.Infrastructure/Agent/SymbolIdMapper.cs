@@ -16,16 +16,18 @@ public static class SymbolIdMapper
             if (string.IsNullOrEmpty(id))
                 return string.Empty;
 
-            if (internalToExternal.TryGetValue(id, out var existingId))
-                return existingId;
+            while (true)
+            {
+                if (internalToExternal.TryGetValue(id, out var existingId))
+                    return existingId;
 
-            var newId = Interlocked.Increment(ref _nextId);
-            var externalId = $"S+{newId:D4}";
+                var externalId = CreateExternalId();
+                if (!internalToExternal.TryAdd(id, externalId))
+                    continue;
 
-            internalToExternal[id] = externalId;
-            externalToInternal[externalId] = id;
-
-            return externalId;
+                externalToInternal[externalId] = id;
+                return externalId;
+            }
         }
 
         public string ToInternal()
@@ -61,5 +63,11 @@ public static class SymbolIdMapper
 
             return externalToInternal.TryGetValue(id, out internalId);
         }
+    }
+
+    private static string CreateExternalId()
+    {
+        var newId = Interlocked.Increment(ref _nextId);
+        return $"S+{newId:D4}";
     }
 }
