@@ -242,19 +242,13 @@ internal sealed class ListTypesHandler(
         bool hadGeneratedFallback)
     {
         if (isDegraded)
-        {
             return ResultCompletenessStates.Degraded;
-        }
 
         if (totalCount > 0 && hadGeneratedFallback && !selectedVisibility.HasHandwritten)
-        {
             return ResultCompletenessStates.Partial;
-        }
 
         if (totalCount == 0 && hadGeneratedFallback && selectedVisibility.HasGenerated && !selectedVisibility.HasHandwritten)
-        {
             return ResultCompletenessStates.Partial;
-        }
 
         return ResultCompletenessStates.Complete;
     }
