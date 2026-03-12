@@ -164,9 +164,7 @@ internal sealed class ListTypesHandler(
             : selectedVisibility.Visibility;
 
         if (ordered.Length == 0 && degradedReasons.Contains("missing_artifacts"))
-        {
             limitations.Add("Type discovery is degraded because referenced source or generated artifacts are missing from the current workspace.");
-        }
 
         if (ordered.Length == 0 && degradedReasons.Contains("compilation_unavailable"))
         {
@@ -210,6 +208,7 @@ internal sealed class ListTypesHandler(
     private static IReadOnlyList<string> GetDeclaredLightweightMembers(INamedTypeSymbol type)
     {
         return type.GetMembers()
+            .Where(member => member.DeclaredAccessibility > Accessibility.Private)
             .Select(member =>
             {
                 var (filePath, _, _) = member.GetDeclarationPosition();
