@@ -1,5 +1,6 @@
 using Is.Assertions;
 using RoslynMcp.Core;
+using RoslynMcp.Core.Models;
 using RoslynMcp.Features.Tools;
 using RoslynMcp.Features.Tools.Inspections;
 using Xunit;
@@ -18,8 +19,9 @@ public sealed class ListDependenciesToolTests(SharedSandboxFixture fixture, ITes
 
         result.Error.ShouldBeNone();
         result.TotalCount.Is(2);
+        result.Dependencies.Select(static dependency => dependency.ProjectPath).Is(Context.GetProject("ProjectCore").Path, Context.GetProject("ProjectImpl").Path);
         result.Dependencies.Select(static dependency => dependency.ProjectName).Is("ProjectCore", "ProjectImpl");
-        result.Edges!.Select(static edge => $"{edge.Source.ProjectName}->{edge.Target.ProjectName}").Is("ProjectApp->ProjectCore", "ProjectApp->ProjectImpl");
+        result.Edges!.Select(edge => edge.ToDisplay(result.Dependencies, project.Path!, project.Name)).OrderBy(static value => value, StringComparer.Ordinal).Is("ProjectApp->ProjectCore", "ProjectApp->ProjectImpl");
     }
 
     [Fact]
@@ -30,8 +32,9 @@ public sealed class ListDependenciesToolTests(SharedSandboxFixture fixture, ITes
 
         result.Error.ShouldBeNone();
         result.TotalCount.Is(2);
+        result.Dependencies.Select(static dependency => dependency.ProjectPath).Is(Context.GetProject("ProjectApp").Path, Context.GetProject("ProjectImpl").Path);
         result.Dependencies.Select(dependency => dependency.ProjectName).Is("ProjectApp", "ProjectImpl");
-        result.Edges!.Select(static edge => $"{edge.Source.ProjectName}->{edge.Target.ProjectName}").Is("ProjectApp->ProjectCore", "ProjectImpl->ProjectCore");
+        result.Edges!.Select(edge => edge.ToDisplay(result.Dependencies, project.Path!, project.Name)).OrderBy(static value => value, StringComparer.Ordinal).Is("ProjectApp->ProjectCore", "ProjectImpl->ProjectCore");
     }
 
     [Fact]
@@ -42,8 +45,9 @@ public sealed class ListDependenciesToolTests(SharedSandboxFixture fixture, ITes
 
         result.Error.ShouldBeNone();
         result.TotalCount.Is(2);
+        result.Dependencies.Select(static dependency => dependency.ProjectPath).Is(Context.GetProject("ProjectApp").Path, Context.GetProject("ProjectCore").Path);
         result.Dependencies.Select(dependency => dependency.ProjectName).Is("ProjectApp", "ProjectCore");
-        result.Edges!.Select(static edge => $"{edge.Source.ProjectName}->{edge.Target.ProjectName}").Is("ProjectApp->ProjectImpl", "ProjectImpl->ProjectCore");
+        result.Edges!.Select(edge => edge.ToDisplay(result.Dependencies, project.Path!, project.Name)).OrderBy(static value => value, StringComparer.Ordinal).Is("ProjectApp->ProjectImpl", "ProjectImpl->ProjectCore");
     }
 
     [Fact]
@@ -69,5 +73,21 @@ public sealed class ListDependenciesToolTests(SharedSandboxFixture fixture, ITes
         var result = await Sut.ExecuteAsync(CancellationToken.None, projectId: Guid.NewGuid().ToString());
 
         result.Error.ShouldHaveCode(ErrorCodes.InvalidInput);
+    }
+}
+
+file static class AssertionExtensions
+{
+    extension(ProjectDependencyEdge edge)
+    {
+        internal string ToDisplay(IReadOnlyList<ProjectDependency> dependencies, string rootProjectPath, string rootProjectName)
+        {
+            var namesByPath = dependencies.ToDictionary(static dependency => dependency.ProjectPath, static dependency => dependency.ProjectName ?? dependency.ProjectPath, StringComparer.OrdinalIgnoreCase);
+            namesByPath.TryAdd(rootProjectPath, rootProjectName);
+            return $"{ResolveName(edge.FromProjectPath, namesByPath, rootProjectName)}->{ResolveName(edge.ToProjectPath, namesByPath, rootProjectName)}";
+        }
+
+        private static string ResolveName(string projectPath, IReadOnlyDictionary<string, string> namesByPath, string rootProjectName)
+            => namesByPath.TryGetValue(projectPath, out var name) ? name : rootProjectName;
     }
 }
