@@ -14,20 +14,29 @@ public sealed record RunTestsRequest(string? Target = null, string? Filter = nul
 public sealed record RunTestsResult(
     string Outcome,
     int? ExitCode,
-    IReadOnlyList<TestFailure> Failures,
+    IReadOnlyList<TestFailureGroup> FailureGroups,
     IReadOnlyList<BuildDiagnostic>? BuildDiagnostics = null,
     string? Summary = null,
-    ErrorInfo? Error = null);
+    ErrorInfo? Error = null,
+    TestRunCounts? Counts = null);
 
-public sealed record TestFailure(
+public sealed record TestFailureGroup(
+    string? File,
+    int Count,
+    IReadOnlyList<GroupedTestFailure> Failures);
+
+public sealed record GroupedTestFailure(
     string? TestName,
     string? Message,
-    string? Expected,
-    string? Actual,
-    string? File,
-    int? Line,
-    string? Code,
-    string? StackTrace);
+    int? Line);
+
+public sealed record TestRunCounts(
+    int Total,
+    int Executed,
+    int Passed,
+    int Failed,
+    int Skipped,
+    int NotExecuted);
 
 public sealed record BuildDiagnostic(
     string? Id,

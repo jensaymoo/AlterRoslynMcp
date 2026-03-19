@@ -39,8 +39,6 @@ internal sealed class TestInspectionService(
                 return InvalidInput(targetResolution.Error);
             }
 
-            var existingFailureReports = SnapshotFailureReports(targetResolution.JsonDiscoveryRoot);
-            var runStartTimeUtc = DateTime.UtcNow;
             var artifacts = CreateArtifacts();
 
             try
@@ -49,9 +47,8 @@ internal sealed class TestInspectionService(
                     .RunAsync(targetResolution.EffectiveTargetPath!, artifacts.ResultsDirectory, request.Filter, ct)
                     .ConfigureAwait(false);
 
-                var jsonReports = DiscoverFreshFailureReports(targetResolution.JsonDiscoveryRoot, existingFailureReports, runStartTimeUtc);
                 var trxReports = DiscoverTrxReports(artifacts.ResultsDirectory);
-                return _testResultInterpreter.Interpret(processResult, jsonReports, trxReports);
+                return _testResultInterpreter.Interpret(processResult, trxReports);
             }
             finally
             {
@@ -63,7 +60,7 @@ internal sealed class TestInspectionService(
             return new RunTestsResult(
                 RunTestOutcomes.Cancelled,
                 null,
-                Array.Empty<TestFailure>(),
+                Array.Empty<TestFailureGroup>(),
                 Summary: "Test execution was cancelled.");
         }
         catch (Exception ex)
@@ -77,7 +74,7 @@ internal sealed class TestInspectionService(
         var solutionDirectory = Path.GetDirectoryName(solutionPath)!;
         if (string.IsNullOrWhiteSpace(requestedTarget))
         {
-            return new TargetResolution(solutionPath, solutionDirectory, null);
+            return new TargetResolution(solutionPath, null);
         }
 
         var normalizedTarget = Path.GetFullPath(
@@ -87,7 +84,7 @@ internal sealed class TestInspectionService(
 
         if (!IsPathWithinRoot(solutionDirectory, normalizedTarget))
         {
-            return new TargetResolution(null, solutionDirectory,
+            return new TargetResolution(null,
                 new ErrorInfo(ErrorCodes.InvalidInput, "Target must be inside the loaded solution directory."));
         }
 
@@ -98,50 +95,20 @@ internal sealed class TestInspectionService(
                 && !string.Equals(extension, ".slnx", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(extension, ".csproj", StringComparison.OrdinalIgnoreCase))
             {
-                return new TargetResolution(null, solutionDirectory,
+                return new TargetResolution(null,
                     new ErrorInfo(ErrorCodes.InvalidInput, "Target must be a .sln, .slnx, .csproj, or directory path."));
             }
 
-            return new TargetResolution(normalizedTarget, Path.GetDirectoryName(normalizedTarget)!, null);
+            return new TargetResolution(normalizedTarget, null);
         }
 
         if (Directory.Exists(normalizedTarget))
         {
-            return new TargetResolution(normalizedTarget, normalizedTarget, null);
+            return new TargetResolution(normalizedTarget, null);
         }
 
-        return new TargetResolution(null, solutionDirectory,
+        return new TargetResolution(null,
             new ErrorInfo(ErrorCodes.InvalidInput, $"Target '{requestedTarget}' does not exist."));
-    }
-
-    private static IReadOnlyDictionary<string, DateTime> SnapshotFailureReports(string rootDirectory)
-    {
-        if (!Directory.Exists(rootDirectory))
-        {
-            return new Dictionary<string, DateTime>(GetPathStringComparer());
-        }
-
-        return Directory.EnumerateFiles(rootDirectory, "FailureReport.json", SearchOption.AllDirectories)
-            .ToDictionary(static path => path, static path => File.GetLastWriteTimeUtc(path), GetPathStringComparer());
-    }
-
-    private static IReadOnlyList<string> DiscoverFreshFailureReports(string rootDirectory, IReadOnlyDictionary<string, DateTime> snapshot, DateTime runStartTimeUtc)
-    {
-        if (!Directory.Exists(rootDirectory))
-        {
-            return Array.Empty<string>();
-        }
-
-        return Directory.EnumerateFiles(rootDirectory, "FailureReport.json", SearchOption.AllDirectories)
-            .Where(path =>
-            {
-                var writeTimeUtc = File.GetLastWriteTimeUtc(path);
-                return !snapshot.TryGetValue(path, out var snapshotWriteTimeUtc)
-                    || writeTimeUtc >= runStartTimeUtc
-                    || writeTimeUtc > snapshotWriteTimeUtc;
-            })
-            .OrderBy(static path => path, GetPathStringComparer())
-            .ToArray();
     }
 
     private static IReadOnlyList<string> DiscoverTrxReports(string resultsDirectory)
@@ -182,7 +149,7 @@ internal sealed class TestInspectionService(
         => new(
             RunTestOutcomes.InfrastructureError,
             null,
-            Array.Empty<TestFailure>(),
+            Array.Empty<TestFailureGroup>(),
             Summary: error.Message,
             Error: error);
 
@@ -190,7 +157,7 @@ internal sealed class TestInspectionService(
         => new(
             RunTestOutcomes.InfrastructureError,
             null,
-            Array.Empty<TestFailure>(),
+            Array.Empty<TestFailureGroup>(),
             Summary: error.Message,
             Error: error);
 
@@ -217,7 +184,7 @@ internal sealed class TestInspectionService(
             ? path
             : path + Path.DirectorySeparatorChar;
 
-    private sealed record TargetResolution(string? EffectiveTargetPath, string JsonDiscoveryRoot, ErrorInfo? Error);
+    private sealed record TargetResolution(string? EffectiveTargetPath, ErrorInfo? Error);
 
     private sealed record TestRunArtifacts(string RootDirectory, string ResultsDirectory);
 }
