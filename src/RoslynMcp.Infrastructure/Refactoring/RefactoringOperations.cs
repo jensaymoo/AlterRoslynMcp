@@ -842,7 +842,7 @@ internal sealed class DocumentFormattingOperations
         try
         {
             var workspaceRoot = _owner._workspaceRoot;
-            var requestedPath = request.Path.Trim().ToWorkspaceAbsolutePath(workspaceRoot);
+            var requestedPath = request.Path.Trim();
             var (solution, version, error) = await _owner.TryGetSolutionWithVersionAsync(ct).ConfigureAwait(false);
             if (solution == null)
             {

@@ -41,6 +41,17 @@ public sealed class TestInspectionServiceTests
     }
 
     [Fact]
+    public void ResolveTarget_AcceptsWorkspaceRelativePathForNestedSolution()
+    {
+        using var sandbox = new NestedTargetResolutionSandbox();
+
+        var resolution = sandbox.ResolveTarget(Path.Combine("tests", "TestSolution", "src", "Child", "Child.csproj"));
+
+        GetError(resolution).IsNull();
+        GetEffectiveTargetPath(resolution).Is(sandbox.ChildProjectPath);
+    }
+
+    [Fact]
     public void ResolveTarget_RejectsSiblingPathOutsideSolutionRoot()
     {
         using var sandbox = new TargetResolutionSandbox();
@@ -79,14 +90,20 @@ public sealed class TestInspectionServiceTests
     private static string? GetEffectiveTargetPath(object resolution)
         => resolution.GetType().GetProperty("EffectiveTargetPath", BindingFlags.Instance | BindingFlags.Public)!.GetValue(resolution) as string;
 
-    private sealed class TargetResolutionSandbox : IDisposable
+    private class TargetResolutionSandbox : IDisposable
     {
         private readonly string _baseDirectory;
 
         public TargetResolutionSandbox()
+            : this(Path.Combine(Path.GetTempPath(), "RoslynMcp", "TestInspectionServiceTests", Guid.NewGuid().ToString("N")), isNestedSolution: false)
         {
-            _baseDirectory = Path.Combine(Path.GetTempPath(), "RoslynMcp", "TestInspectionServiceTests", Guid.NewGuid().ToString("N"));
-            SolutionRoot = Path.Combine(_baseDirectory, "workspace");
+        }
+
+        protected TargetResolutionSandbox(string baseDirectory, bool isNestedSolution)
+        {
+            _baseDirectory = baseDirectory;
+            WorkspaceRoot = Path.Combine(_baseDirectory, "workspace");
+            SolutionRoot = isNestedSolution ? Path.Combine(WorkspaceRoot, "tests", "TestSolution") : WorkspaceRoot;
             SolutionPath = Path.Combine(SolutionRoot, "RoslynMcp.sln");
             ChildProjectPath = Path.Combine(SolutionRoot, "src", "Child", "Child.csproj");
             SiblingProjectPath = Path.Combine(_baseDirectory, "sibling", "Sibling.csproj");
@@ -97,6 +114,8 @@ public sealed class TestInspectionServiceTests
             File.WriteAllText(ChildProjectPath, string.Empty);
             File.WriteAllText(SiblingProjectPath, string.Empty);
         }
+
+        public string WorkspaceRoot { get; }
 
         public string SolutionRoot { get; }
 
@@ -109,7 +128,7 @@ public sealed class TestInspectionServiceTests
         public object ResolveTarget(string requestedTarget)
         {
             var method = GetServiceType().GetMethod("ResolveTarget", BindingFlags.Static | BindingFlags.NonPublic)!;
-            return method.Invoke(null, [SolutionPath, requestedTarget])!;
+            return method.Invoke(null, [SolutionPath, WorkspaceRoot, requestedTarget])!;
         }
 
         public void Dispose()
@@ -118,6 +137,14 @@ public sealed class TestInspectionServiceTests
             {
                 Directory.Delete(_baseDirectory, recursive: true);
             }
+        }
+    }
+
+    private sealed class NestedTargetResolutionSandbox : TargetResolutionSandbox
+    {
+        public NestedTargetResolutionSandbox()
+            : base(Path.Combine(Path.GetTempPath(), "RoslynMcp", "TestInspectionServiceTests", Guid.NewGuid().ToString("N")), isNestedSolution: true)
+        {
         }
     }
 }

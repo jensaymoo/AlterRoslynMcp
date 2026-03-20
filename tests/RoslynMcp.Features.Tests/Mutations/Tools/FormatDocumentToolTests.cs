@@ -96,6 +96,25 @@ public sealed class FormatDocumentToolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithWorkspaceRelativePath_ForNestedSolution_FormatsAndReturnsWorkspaceRelativePath()
+    {
+        await using var context = await NestedWorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<FormatDocumentTool>();
+        var filePath = context.GetFilePath("ProjectImpl", "FormattingFixture");
+        var relativePath = Path.Combine("tests", "TestSolution", "ProjectImpl", "FormattingFixture.cs");
+
+        var result = await sut.ExecuteAsync(CancellationToken.None, relativePath);
+
+        result.Error.ShouldBeNone();
+        result.Path.Is(relativePath);
+        result.WasFormatted.IsTrue();
+
+        var after = await File.ReadAllTextAsync(filePath);
+        after.Contains("public int Add(int left, int right)", StringComparison.Ordinal).IsTrue();
+        after.Contains("return left + right;", StringComparison.Ordinal).IsTrue();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithDirectDiskEditAfterLoad_PreservesEditWhileFormatting()
     {
         await using var context = await CreateContextAsync();
@@ -155,6 +174,26 @@ public sealed class FormatDocumentToolTests(ITestOutputHelper output)
             {
                 var sandbox = TestSolutionSandbox.Create(context.CanonicalTestSolutionDirectory);
                 using var currentDirectory = CurrentDirectoryScope.Enter(sandbox.SolutionRoot);
+                await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
+                return context;
+            }
+            catch
+            {
+                await context.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
+    }
+
+    private sealed class NestedWorkspaceRootSandboxContext : SandboxContext
+    {
+        public static async Task<NestedWorkspaceRootSandboxContext> CreateAsync(CancellationToken cancellationToken = default)
+        {
+            var context = new NestedWorkspaceRootSandboxContext();
+            try
+            {
+                var sandbox = TestSolutionSandbox.CreateNested(context.CanonicalTestSolutionDirectory, "tests", "TestSolution");
+                using var currentDirectory = CurrentDirectoryScope.Enter(sandbox.SandboxRoot);
                 await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
                 return context;
             }

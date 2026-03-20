@@ -19,7 +19,6 @@ internal sealed class TestInspectionService(
     public async Task<RunTestsResult> RunTestsAsync(RunTestsRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
-        request = request.WithWorkspaceAbsolutePaths(_workspaceRoot);
 
         try
         {
@@ -36,7 +35,7 @@ internal sealed class TestInspectionService(
                 return InfrastructureFailure(new ErrorInfo(ErrorCodes.SolutionNotSelected, "No solution has been selected.")).WithWorkspaceRelativePaths(_workspaceRoot);
             }
 
-            var targetResolution = ResolveTarget(solutionPath, request.Target);
+            var targetResolution = ResolveTarget(solutionPath, _workspaceRoot, request.Target);
             if (targetResolution.Error is not null)
             {
                 return InvalidInput(targetResolution.Error).WithWorkspaceRelativePaths(_workspaceRoot);
@@ -73,7 +72,7 @@ internal sealed class TestInspectionService(
         }
     }
 
-    private static TargetResolution ResolveTarget(string solutionPath, string? requestedTarget)
+    private static TargetResolution ResolveTarget(string solutionPath, string workspaceRoot, string? requestedTarget)
     {
         var solutionDirectory = Path.GetDirectoryName(solutionPath)!;
         if (string.IsNullOrWhiteSpace(requestedTarget))
@@ -84,7 +83,7 @@ internal sealed class TestInspectionService(
         var normalizedTarget = Path.GetFullPath(
             Path.IsPathRooted(requestedTarget)
                 ? requestedTarget
-                : Path.Combine(solutionDirectory, requestedTarget.Trim()));
+                : Path.Combine(workspaceRoot, requestedTarget.Trim()));
 
         if (!IsPathWithinRoot(solutionDirectory, normalizedTarget))
         {

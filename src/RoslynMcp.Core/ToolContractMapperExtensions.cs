@@ -132,8 +132,8 @@ public static class ToolContractMapperExtensions
             => new(NormalizeOptionalString(solutionHintPath),
                 NormalizeOptionalString(newName));
 
-        public FormatDocumentRequest ToFormatDocumentRequest(string workspaceRoot)
-            => new(NormalizeOptionalString(solutionHintPath)?.ToWorkspaceAbsolutePath(workspaceRoot) ?? string.Empty);
+        public FormatDocumentRequest ToFormatDocumentRequest()
+            => new(NormalizeString(solutionHintPath));
 
         public AddMethodRequest ToAddMethodRequest(
             string? name,

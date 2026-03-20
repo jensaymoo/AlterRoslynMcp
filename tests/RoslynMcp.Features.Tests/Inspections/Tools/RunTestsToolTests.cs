@@ -218,6 +218,22 @@ public sealed class RunTestsToolTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithWorkspaceRelativeProjectTarget_ForNestedSolution_ResolvesFromWorkspaceRoot()
+    {
+        await using var context = await NestedWorkspaceRootSandboxContext.CreateAsync();
+        var sut = context.GetRequiredService<RunTestsTool>();
+        var relativeTarget = Path.Combine("tests", "TestSolution", RunTestsFixturesDirectoryName, PassingOnlyProjectName, $"{PassingOnlyProjectName}.csproj");
+
+        var result = await sut.ExecuteAsync(CancellationToken.None, relativeTarget);
+
+        result.Error.ShouldBeNone();
+        result.Outcome.Is(RunTestOutcomes.Passed);
+        result.FailureGroups.Count.Is(0);
+        result.Counts.IsNotNull();
+        result.Counts!.Passed.Is(1);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WhenBuildFails_ReturnsBuildDiagnostics()
     {
         await using var context = await CreateContextAsync();
@@ -296,6 +312,26 @@ public sealed class RunTestsToolTests(ITestOutputHelper output)
             {
                 var sandbox = TestSolutionSandbox.Create(context.CanonicalTestSolutionDirectory);
                 using var currentDirectory = new CurrentDirectoryScope(sandbox.SolutionRoot);
+                await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
+                return context;
+            }
+            catch
+            {
+                await context.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
+    }
+
+    private sealed class NestedWorkspaceRootSandboxContext : SandboxContext
+    {
+        public static async Task<NestedWorkspaceRootSandboxContext> CreateAsync(CancellationToken cancellationToken = default)
+        {
+            var context = new NestedWorkspaceRootSandboxContext();
+            try
+            {
+                var sandbox = TestSolutionSandbox.CreateNested(context.CanonicalTestSolutionDirectory, "tests", "TestSolution");
+                using var currentDirectory = new CurrentDirectoryScope(sandbox.SandboxRoot);
                 await context.InitializeSandboxAsync(sandbox, cancellationToken).ConfigureAwait(false);
                 return context;
             }
