@@ -59,13 +59,13 @@ Loads .NET solution and prepares workspace for analysis .
 
 Static file analysis via Roslynator for detecting potential problems .
 
-| Parameter | Description |
-|-----------|-------------|
-| `path` | Path to `.cs` file (required) |
-| `maxFindings` | Max number of results |
-| `riskLevels` | `low` / `review_required` / `high` / `info` |
+| Parameter | Description|
+|-----------|------------|
+| `path` | Full path to `.cs` file (required)|
+| `maxFindings` | Max number of results|
+| `riskLevels` | `low` / `review_required` / `high` / `info`|
 | `categories` | `analyzer` / `correctness` / `design` / `maintainability` / `performance` / `style` |
-| `reviewMode` | `default` / `conservative` (suppresses noise) |
+| `reviewMode` | `default` / `conservative` (suppresses noise)|
 
 **Risk Levels:**
 - `high` — Critical issues requiring immediate attention
