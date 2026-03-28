@@ -4,8 +4,8 @@ An MCP server that provides AI agents with Roslyn-based code analysis capabiliti
 
 ## Get It on NuGet
 
-[![NuGet](https://img.shields.io/nuget/v/RoslynMcp.svg)](https://www.nuget.org/packages/RoslynMcp/)
-[![.NET](https://img.shields.io/badge/.NET-10.0-blue)](https://www.nuget.org/packages/RoslynMcp/)
+[![NuGet](https://img.shields.io/nuget/v/AlterRoslynMcp.svg)](https://www.nuget.org/packages/AlterRoslynMcp/)
+[![.NET](https://img.shields.io/badge/.NET-10.0-blue)](https://www.nuget.org/packages/AlterRoslynMcp/)
 
 _This project uses Roslynator, licensed under Apache 2.0._
 
@@ -78,12 +78,4 @@ Traditional AI code assistants often rely on simplistic pattern matching (grep/g
 | **Rename Symbol**          | Rename operation for types, methods, etc.                                      |
 | **Format Document**        | Format a C# source file using the solution's settings                          |
 
-### When To Use Mutation Tools vs Text Edits
-
-Use mutation tools when an agent needs a precise, symbol-aware edit and wants Roslyn to target the exact declaration instead of relying on file positions or text matching. They are especially useful for overloaded methods, signature changes, targeted logic replacement, and cleanup work where touching the wrong method would be expensive.
-
-Prefer normal text edits when the task spans multiple nearby code regions, when the desired syntax is not well expressed by the mutation API, or when the agent is still shaping code quickly and does not yet need symbol-level precision.
-
-In practice, the best workflow is often hybrid: resolve the symbol with Roslyn, use mutation tools for the risky surgical edit, and fall back to normal file editing for broader reshaping around it.
-
-
+A detailed description of all tools is available in the [Wiki](https://github.com/jensaymoo/AlterRoslynMcp/wiki).
