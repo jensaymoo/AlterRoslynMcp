@@ -24,4 +24,8 @@ jobs:
 #      run: dotnet test --verbosity normal
       
     - name: Build package
-      run: dotnet pack ./src/RoslynMcp.Host/RoslynMcp.Host.csproj --output .nupkgs
+      run: dotnet pack ./src/RoslynMcp.Host/RoslynMcp.Host.csproj --output .nupkg
+      
+    - name: Publish package
+      working-directory: ./.nupkg
+      run: dotnet nuget push **/*.nupkg --api-key ${{ secrets.NUGET_KEY }} --source https://api.nuget.org/v3/index.json
