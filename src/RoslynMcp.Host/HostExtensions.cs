@@ -1,31 +1,23 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
-using RoslynMcp.Features;
-using RoslynMcp.Infrastructure;
+
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using RoslynMcp.Features.Tools;
-using Tool = RoslynMcp.Features.Tools.Tool;
 
 namespace RoslynMcp.Host;
 
-public static class HostExtensions
+internal static class HostExtensions
 {
-    internal static string ServerVersion => Assembly.GetExecutingAssembly()?
+    private static string ServerVersion => Assembly.GetExecutingAssembly()?
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
         ?? typeof(HostExtensions).Assembly.GetName().Version?.ToString()
         ?? "0.0.0";
 
     extension(IServiceCollection services)
     {
-        public void Compose() => services
-            .AddInfrastructure()
-            .AddImplementations<Tool>()
-            .AddMcpRuntime();
-
-        private void AddMcpRuntime()
+        internal void AddMcpRuntime()
         {
             var serializerOptions = new JsonSerializerOptions
             {
@@ -39,13 +31,15 @@ public static class HostExtensions
             {
                 options.ServerInfo = new Implementation
                 {
-                    Name = "RoslynMcp",
-                    Version = ServerVersion
+                    Name = nameof(RoslynMcp),
+                    WebsiteUrl = "https://github.com/jensaymoo/AlterRoslynMcp",
+                    Description = "An MCP server that provides AI agents with Roslyn-based code analysis capabilities",
+                    Version = ServerVersion,
                 };
             });
 
             builder.WithStdioServerTransport();
-            builder.WithTools(FeatureExtensions.GetImplementations<Tool>(), serializerOptions);
+            builder.WithToolsFromAssembly(serializerOptions: serializerOptions);
         }
     }
 }

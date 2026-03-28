@@ -253,7 +253,7 @@ file sealed class ReplaceMethodBodyApplyFailureSandboxContext : SandboxContext
         .AddSingleton<FirstApplyFailsReplaceMethodBodySolutionSessionService>()
         .AddSingleton<ISolutionSessionService>(provider => provider.GetRequiredService<FirstApplyFailsReplaceMethodBodySolutionSessionService>())
         .AddSingleton<IRoslynSolutionAccessor>(provider => provider.GetRequiredService<FirstApplyFailsReplaceMethodBodySolutionSessionService>())
-        .AddImplementations<Tool>()
+        .AddImplementations<ITool>()
         .BuildServiceProvider();
 }
 

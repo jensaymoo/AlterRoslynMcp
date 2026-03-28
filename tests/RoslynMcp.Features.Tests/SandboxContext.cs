@@ -80,7 +80,7 @@ public abstract class SandboxContext : IAsyncDisposable
 
     protected virtual ServiceProvider CreateServiceProvider() => new ServiceCollection()
         .AddInfrastructure()
-        .AddImplementations<Tool>()
+        .AddImplementations<ITool>()
         .BuildServiceProvider();
 
     public async ValueTask DisposeAsync()

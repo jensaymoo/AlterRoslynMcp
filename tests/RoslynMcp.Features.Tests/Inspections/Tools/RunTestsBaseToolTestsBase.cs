@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 namespace RoslynMcp.Features.Tests.Inspections.Tools;
 
 [Collection(CurrentDirectorySensitiveCollection.Name)]
-public sealed class RunTestsToolTests(ITestOutputHelper output)
+public sealed class RunTestsBaseToolTestsBase(ITestOutputHelper output)
     : IsolatedToolTests<RunTestsTool>(output)
 {
     private const string RunTestsFixturesDirectoryName = "RunTestsFixtures";

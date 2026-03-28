@@ -229,7 +229,7 @@ file sealed class RetryOnFirstApplySandboxContext : SandboxContext
         .AddSingleton<FirstApplyFailsSolutionSessionService>()
         .AddSingleton<ISolutionSessionService>(provider => provider.GetRequiredService<FirstApplyFailsSolutionSessionService>())
         .AddSingleton<IRoslynSolutionAccessor>(provider => provider.GetRequiredService<FirstApplyFailsSolutionSessionService>())
-        .AddImplementations<Tool>()
+        .AddImplementations<ITool>()
         .BuildServiceProvider();
 }
 

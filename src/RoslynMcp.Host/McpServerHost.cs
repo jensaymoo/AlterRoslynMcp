@@ -1,18 +1,25 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using RoslynMcp.Infrastructure;
+
+using HostService = Microsoft.Extensions.Hosting.Host;
 
 namespace RoslynMcp.Host;
 
 public static class McpServerHost
 {
-    public static async Task RunAsync(string[] args, CancellationToken cancellationToken = default)
+    public static async Task RunAsync(string[] args, CancellationToken ct = default)
     {
-        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(args);
+        var builder = HostService.CreateApplicationBuilder(args);
 
         builder.Logging.ClearProviders();
-        builder.Services.Compose();
+        
+        builder.Services
+            .AddInfrastructure()
+            .AddMcpRuntime();
 
         var host = builder.Build();
-        await host.RunAsync(cancellationToken).ConfigureAwait(false);
+        
+        await host.RunAsync(ct);
     }
 }

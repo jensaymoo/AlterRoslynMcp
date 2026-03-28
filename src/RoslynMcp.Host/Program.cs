@@ -11,6 +11,6 @@ public static class Program
             cts.Cancel();
         };
 
-        await McpServerHost.RunAsync(args, cts.Token).ConfigureAwait(false);
+        await McpServerHost.RunAsync(args, cts.Token);
     }
 }
