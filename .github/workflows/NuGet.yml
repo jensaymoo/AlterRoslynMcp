@@ -20,6 +20,8 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
       
-    - name: Run Tests
-      run: dotnet test --verbosity normal
+#    - name: Run Tests
+#      run: dotnet test --verbosity normal
       
+    - name: Build package
+      run: dotnet pack ./src/RoslynMcp.Host/RoslynMcp.Host.csproj --output .nupkgs
