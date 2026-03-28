@@ -1,11 +1,6 @@
-![plot](assets/icon.png)
-
-
-
-# RoslynMcp
+# AlterRoslynMcp
 
 A Model Context Protocol (MCP) server that brings Roslyn code intelligence to AI agents.
-
 
 ## Get It on NuGet
 
@@ -17,13 +12,13 @@ _This project uses Roslynator, licensed under Apache 2.0._
 #### Installation
 
 ```bash
-dotnet tool install -g RoslynMcp
+dotnet tool install -g AlterRoslynMcp
 ```
 
 #### Update
 
 ```bash
-dotnet tool update -g RoslynMcp
+dotnet tool update -g AlterRoslynMcp
 ```
 
 
@@ -34,7 +29,7 @@ dotnet tool update -g RoslynMcp
     "roslyn": {
       "type": "local",
       "command": [
-        "roslynmcp"
+        "AlterRoslynMcp"
       ]
     }
   }
