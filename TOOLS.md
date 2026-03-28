@@ -2,7 +2,7 @@
 
 These tool descriptions are written as routing triggers. Use them to help an agent decide which tool to call based on the user's intent.
 
-
+---
 ### `load_solution`
 
 Use this tool when you need to start working with a .NET solution and no solution has been loaded yet. This must be the first tool called in a session before any code analysis or navigation tools can be used. The result now includes a readiness state so fresh or detached worktrees can be reported as degraded_missing_artifacts or degraded_restore_recommended instead of leaving users to infer that from diagnostics alone.
@@ -10,7 +10,7 @@ Use this tool when you need to start working with a .NET solution and no solutio
 Parameters:
 - `solutionHintPath` (optional): Absolute path to a `.sln` file, or to a directory used as the recursive discovery root for `.sln`/`.slnx` files. If omitted, the tool will auto-detect from the current workspace.
 
-
+---
 ### `understand_codebase`
 
 Use this tool when you need a quick overview of the codebase structure at the start of a session. It returns the project structure with dependency relationships and identifies hotspots from hand-written source by default so generated/intermediate artifacts do not dominate the initial view.
@@ -18,7 +18,7 @@ Use this tool when you need a quick overview of the codebase structure at the st
 Parameters:
 - `profile` (optional): Analysis depth. `quick` for fast results, `standard` for balanced output, `deep` for thorough analysis. Defaults to `standard`.
 
-
+---
 ### `list_dependencies`
 
 Use this tool when you need to understand how projects relate to each other within a solution. It shows the dependency graph between projects, indicating which projects depend on which others. For automation, prefer projectPath as the stable selector; projectId is snapshot-local to the active workspace snapshot.
@@ -29,7 +29,7 @@ Parameters:
 - `projectId` (optional): Project identifier from the current `load_solution` workspace snapshot. It is snapshot-local and can change after reload, so prefer `projectPath` for automation. Specify only one of `projectPath`, `projectName`, or `projectId`.
 - `direction` (optional): Which direction of dependencies to return. `outgoing` shows what the selected project depends on. `incoming` shows what depends on the selected project. `both` returns both directions. Defaults to `both`.
 
-
+---
 ### `list_types`
 
 Use this tool when you need to list types declared in a specific loaded project. It is useful for project-scoped discovery and for finding type symbols by name before calling tools like `list_members`, `resolve_symbol`, or `get_type_hierarchy`. It can also enrich just the returned type entries with XML summaries or lightweight declared-member previews when you need a quick scan before a deeper follow-up. For automation, prefer projectPath as the stable selector; projectId is snapshot-local to the active workspace snapshot. Results prefer handwritten declarations by default and report source bias, completeness, and degraded discovery hints.
@@ -59,7 +59,7 @@ Example:
 }
 ```
 
-
+---
 ### `list_members`
 
 Use this tool when you need to inspect the members declared by a specific type. It returns methods, properties, fields, events, and constructors, and supports filtering by kind, accessibility, binding, inheritance, and pagination so you can keep results focused.
@@ -76,7 +76,7 @@ Parameters:
 - `limit` (optional): Maximum number of results to return. Defaults to `100`, maximum `500`.
 - `offset` (optional): Number of results to skip for pagination. Defaults to `0`.
 
-
+---
 ### `resolve_symbol`
 
 Use this tool when you have a source position (`path` + `line` + `column`), a qualified symbol name, or an existing `symbolId` and need the stable `symbolId` plus declaration location used by other navigation tools. This is often the first step before calling `explain_symbol`, `trace_call_flow`, `find_callers`, or `find_usages`. Qualified-name lookup can search the whole loaded solution, but `projectPath` is the preferred stable disambiguator for automation.
@@ -91,7 +91,7 @@ Parameters:
 - `projectName` (optional): Optional project scope for `qualifiedName` lookup — name of a project that contains the symbol. Use this to narrow ambiguous matches.
 - `projectId` (optional): Optional project scope for `qualifiedName` lookup — project ID from the current `load_solution` workspace snapshot. It is snapshot-local and can change after reload, so prefer `projectPath` when you need a durable selector.
 
-
+---
 ### `resolve_symbols`
 
 Use this tool when you need to resolve multiple symbols in one round-trip. Each entry reuses resolve_symbol semantics, including symbolId, source position, qualifiedName lookup, project scoping, readable symbol references, and structured ambiguity results.
@@ -115,7 +115,7 @@ The result includes a `documentation` field with:
 - `returns`: The return value description (for methods)
 - `parameters`: List of parameter names and descriptions (for methods)
 
-
+---
 ### `trace_call_flow`
 
 Use this tool when you need to understand how code flows through your system — either finding what calls a specific symbol (upstream) or what a symbol calls (downstream). This is essential for debugging, impact analysis, and understanding architectural patterns. Results prefer hand-written source by default so generated/intermediate call edges do not overwhelm interactive traces, and transition labels now degrade explicitly to unresolved_project/project_inference_degraded when attribution is uncertain. Set includePossibleTargets=true to receive a deliberate possible-runtime-target edge set for uncertain polymorphic dispatch.
@@ -129,7 +129,7 @@ Parameters:
 - `depth` (optional): How many levels of the call chain to traverse. Defaults to `2`. Use larger values for deeper analysis. `null` behaves the same as omitting the parameter.
 - `includePossibleTargets` (optional): When true, also returns possible-runtime-target edges for uncertain interface or polymorphic dispatch. Direct static edges remain separate in the main edge list.
 
-
+---
 ### `find_callers`
 
 Use this tool when you need only the immediate direct upstream callers of a symbol. This is a focused wrapper around call-flow tracing and does not traverse beyond one caller level.
@@ -137,7 +137,7 @@ Use this tool when you need only the immediate direct upstream callers of a symb
 Parameters:
 - `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`, for the symbol whose immediate direct callers you want to inspect.
 
-
+---
 ### `find_callees`
 
 Use this tool when you need only the immediate direct downstream callees of a symbol. This is a focused wrapper around call-flow tracing and does not traverse beyond one callee level.
@@ -145,7 +145,7 @@ Use this tool when you need only the immediate direct downstream callees of a sy
 Parameters:
 - `symbolId` (optional): The stable symbol ID, obtained from `resolve_symbol`, `list_types`, or `list_members`, for the symbol whose immediate direct callees you want to inspect.
 
-
+---
 ### `find_usages`
 
 Use this tool when you need to find source-code references to a specific symbol across a document, project, or the entire solution. This is critical before refactoring or modifying a symbol to understand its static impact, but it may not include dynamic, reflection-based, or string-based usages.
@@ -155,7 +155,7 @@ Parameters:
 - `scope` (optional): The search scope. `project` searches only within the containing project. `solution` searches the entire solution. Defaults to `solution`.
 - `path` (optional): Required when scope=document: the file path to search within.
 
-
+---
 ### `find_implementations`
 
 Use this tool when you need to find concrete implementations of an interface or abstract type, and overrides or implementations of abstract/virtual members. This is essential for understanding static polymorphic targets in the loaded solution before refactoring or changing a contract.
@@ -163,7 +163,7 @@ Use this tool when you need to find concrete implementations of an interface or 
 Parameters:
 - `symbolId` (required): The stable symbol ID of an interface, abstract type, or abstract/virtual member, obtained from `resolve_symbol`, `list_types`, or `list_members`.
 
-
+---
 ### `get_type_hierarchy`
 
 Use this tool when you need to inspect a type's inheritance relationships: base types, implemented interfaces, and derived types. Use `includeTransitive=false` for immediate parents and children only, or `true` to expand the full transitive hierarchy.
@@ -173,7 +173,7 @@ Parameters:
 - `includeTransitive` (optional): When `true` (default), includes all transitive base types and all derived types. When `false`, returns only immediate parents and children.
 - `maxDerived` (optional): Maximum number of derived types to return. Defaults to `200`. Higher values may impact performance.
 
-
+---
 ### `find_codesmells`
 
 Use this tool when you need to check a specific file for potential code quality issues. It runs Roslyn-based static analysis to detect common problems such as dead code, performance anti-patterns, naming violations, and other code smells identified by Roslynator analyzers. Optional filters operate on stable normalized risk levels (low, review_required, high, info) and categories (analyzer, correctness, design, maintainability, performance, style) in deterministic stream order. reviewMode=conservative favors stronger review signals over low-noise style and trivia suggestions.
@@ -185,7 +185,7 @@ Parameters:
 - `categories` (optional): Accepted categories to include. Use normalized values: analyzer, correctness, design, maintainability, performance, or style. When omitted or empty, all categories are included.
 - `reviewMode` (optional): Review ranking mode. Use 'default' for the existing stream or 'conservative' to suppress lightweight style/trivia noise when stronger issues are present.
 
-
+---
 ### `rename_symbol`
 
 Use this tool when you need to rename a symbol (type, method, property, field, parameter, local variable, etc.) across the entire solution. This performs a safe refactoring that updates all references to the symbol. Returns the list of changed files.
@@ -194,7 +194,7 @@ Parameters:
 - `symbolId` (required): The symbol ID of the symbol to rename. Use 'resolve_symbol' to obtain this if needed.
 - `newName` (required): The new name for the symbol. Must be a valid C# identifier and should not conflict with existing symbols in the same scope.
 
-
+---
 ### `add_method`
 
 Use this tool when you need to add a new method to an existing loaded type without manually rewriting the full file. It is a good fit for adding helpers or overloads when an agent wants exact symbol-aware insertion instead of line-based text editing. Provide a target type symbol id, flat method signature fields, a list of simple parameter declaration strings like `string input`, and a body string containing only the statements inside the method body block. The body can be multi-line and may include local functions, lambdas, loops, `async`/`await`, and `try`/`catch` as long as it is valid for the requested method shape. The tool inserts the method structurally, formats the changed document, applies the solution, and returns the created method symbol id plus newly introduced diagnostics for the changed document.
@@ -208,7 +208,7 @@ Parameters:
 - `parameters` (optional): Optional parameter declarations without surrounding parentheses. Each entry should be a simple C# parameter declaration string such as `string input`, `int priority`, or `bool isEnabled`.
 - `body` (required): The method body content only, without outer braces. This may contain multiple statements and nested control flow as long as the body parses as valid C# for the requested method.
 
-
+---
 ### `replace_method`
 
 Use this tool when you need to replace an existing method in a loaded type without manually rewriting the full file. This is the right choice when an agent must change the method name, signature, modifiers, or return type and wants a structural edit instead of a brittle text replacement. Provide the target method symbol id plus flat method declaration fields. Parameters must be simple C# parameter declaration strings like `string input` without surrounding parentheses, and the body must contain only the statements inside the method body without braces. The body can be multi-line and may include local functions, lambdas, loops, `async`/`await`, and `try`/`catch` as long as it is valid for the replacement method shape. The tool replaces the method structurally, formats the changed document, applies the solution, and returns the new method symbol id plus newly introduced diagnostics for the changed document. After replacement, continue with the returned new symbol id for later operations on that method.
@@ -222,7 +222,7 @@ Parameters:
 - `parameters` (optional): Optional replacement parameter declarations without surrounding parentheses. Each entry should be a simple C# parameter declaration string such as `string input`, `int priority`, or `bool isEnabled`.
 - `body` (required): The replacement method body content only, without outer braces. This may contain multiple statements and nested control flow as long as the body parses as valid C# for the replacement method.
 
-
+---
 ### `replace_method_body`
 
 Use this tool when you need to replace only the body of an existing block-bodied method in a loaded C# solution. It is the best fit for targeted logic changes when the method declaration should stay exactly as it is. Provide the target method symbol id and a body string containing only the statements inside the method body, without outer braces. The body can be multi-line and may include local functions, lambdas, loops, `async`/`await`, and `try`/`catch` as long as it is valid for that method. The tool preserves the existing method declaration shape, replaces only the body node, formats the changed document, applies the solution, and returns changed files plus newly introduced diagnostics for the changed document. This tool currently supports only block-bodied methods, not expression-bodied methods.
@@ -231,7 +231,7 @@ Parameters:
 - `targetMethodSymbolId` (required): The stable symbol id of the exact existing method whose body should be replaced. This must resolve to one source-declared, ordinary, block-bodied C# method.
 - `body` (required): The replacement method body content only, without outer braces. This may contain multiple statements and nested control flow as long as the body parses as valid C# for the existing method.
 
-
+---
 ### `delete_method`
 
 Use this tool when you need to delete an existing method from a loaded solution without manually rewriting the full file. It is especially useful for exact cleanup work such as removing obsolete overloads or disposable helper methods without risking the wrong declaration in a crowded file. Provide the stable symbol id of the exact method to remove. The tool resolves the method semantically, removes its source declaration structurally, formats the changed document, applies the solution, and returns changed files plus newly introduced diagnostics for the changed document.
@@ -239,7 +239,7 @@ Use this tool when you need to delete an existing method from a loaded solution 
 Parameters:
 - `targetMethodSymbolId` (required): The stable symbol id of the exact existing method to delete. This must resolve to one source-declared, ordinary C# method.
 
-
+---
 ### `format_document`
 
 Use this tool when you need to format exactly one C# source file in the loaded solution using the solution's current formatting and style settings. Returns whether formatting changes were applied and persisted.
