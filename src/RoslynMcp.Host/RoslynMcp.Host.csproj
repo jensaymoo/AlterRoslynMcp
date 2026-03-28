@@ -7,15 +7,15 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"
-                          Version="10.0.3" />
+                          Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"
-                          Version="10.0.3" />
+                          Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Hosting"
-                          Version="10.0.3" />
+                          Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console"
-                          Version="10.0.3" />
+                          Version="10.0.5" />
         <PackageReference Include="ModelContextProtocol"
-                          Version="1.0.0" />
+                          Version="1.2.0" />
     </ItemGroup>
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -27,8 +27,8 @@
     <PropertyGroup>
         <PackageId>AlterRoslynMcp</PackageId>
         <PackAsTool>true</PackAsTool>
-        <ToolCommandName>roslynmcp</ToolCommandName>
-        <Version>0.9.3</Version>
+        <ToolCommandName>AlterRoslynMcp</ToolCommandName>
+        <Version>0.9.4</Version>
         <Authors>jensaymoo</Authors>
         <Description>Roslyn-based MCP server for semantic C# analysis.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -37,7 +37,7 @@
         <PackageOutputPath>../../.nupkg</PackageOutputPath>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageTags>dotnet8;mcp;agent;ai;vibe;coding;C#;grep;glob</PackageTags>
+        <PackageTags>mcp;agent;ai;vibe;coding;C#;grep;glob</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <None Include="..\..\assets\icon.png"
