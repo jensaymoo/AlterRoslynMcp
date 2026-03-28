@@ -1,6 +1,6 @@
 # AlterRoslynMcp
 
-A Model Context Protocol (MCP) server that brings Roslyn code intelligence to AI agents.
+An MCP server that provides AI agents with Roslyn-based code analysis capabilities
 
 ## Get It on NuGet
 
