@@ -3,7 +3,6 @@
     <ItemGroup>
         <ProjectReference Include="..\RoslynMcp.Core\RoslynMcp.Core.csproj" />
         <ProjectReference Include="..\RoslynMcp.Infrastructure\RoslynMcp.Infrastructure.csproj" />
-        <ProjectReference Include="..\RoslynMcp.Features\RoslynMcp.Features.csproj" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"
@@ -16,6 +15,7 @@
                           Version="10.0.5" />
         <PackageReference Include="ModelContextProtocol"
                           Version="1.2.0" />
+        <PackageReference Include="Scrutor" Version="7.0.0" />
     </ItemGroup>
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -28,7 +28,7 @@
         <PackageId>AlterRoslynMcp</PackageId>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>AlterRoslynMcp</ToolCommandName>
-        <Version>0.9.4</Version>
+        <Version>0.9.5</Version>
         <Authors>jensaymoo</Authors>
         <Description>Roslyn-based MCP server for semantic C# analysis.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -37,7 +37,7 @@
         <PackageOutputPath>../../.nupkg</PackageOutputPath>
         <PackageIcon>icon.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageTags>mcp;agent;ai;vibe;coding;C#;grep;glob</PackageTags>
+        <PackageTags>mcp;agent;ai;vibe;coding;C#;</PackageTags>
     </PropertyGroup>
     <ItemGroup>
         <None Include="..\..\assets\icon.png"
