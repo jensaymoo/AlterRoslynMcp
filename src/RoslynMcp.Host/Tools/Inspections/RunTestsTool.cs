@@ -23,7 +23,7 @@ public sealed class RunTestsTool(ITestInspectionService testInspectionService)
             absolute .sln, .slnx, .csproj, or directory paths when the resolved target stays within the loaded solution directory.
             """
         )]
-        string? target = null,
+        string target,
 
         [Description("Optional dotnet test filter expression. Passed through to --filter semantics where practical.")]
         string? filter = null)

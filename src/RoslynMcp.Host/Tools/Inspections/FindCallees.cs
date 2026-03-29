@@ -26,7 +26,7 @@ public sealed class FindCalleesTool(IFlowTraceService flowTraceService)
             immediate direct callees you want to inspect.
             """
         )]
-        string? symbolId = null)
+        string symbolId)
     {
         return _flowTraceService.TraceFlowAsync(symbolId.ToTraceFlowRequest(null, null, null, "downstream", 1, false),
             cancellationToken);

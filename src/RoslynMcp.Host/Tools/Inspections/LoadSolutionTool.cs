@@ -25,11 +25,11 @@ public sealed class LoadSolutionTool(IWorkspaceBootstrapService workspaceBootstr
     public Task<LoadSolutionResult> ExecuteAsync(CancellationToken cancellationToken,
         [Description(
             """
-            (optional): Absolute path to a `.sln` file, or to a directory used as the recursive discovery 
-            root for `.sln`/`.slnx` files. If omitted, the tool will auto-detect from the current workspace.
+            Absolute path to a `.sln` file, or to a directory used as the recursive discovery 
+            root for `.sln`/`.slnx` files.
             """
         )]
-        string? solutionHintPath = null)
+        string solutionHintPath)
     {
         return _workspaceBootstrapService.LoadSolutionAsync(solutionHintPath.ToLoadSolutionRequest(),
             cancellationToken);

@@ -47,10 +47,10 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
         [Description(
             """
             When omitted or true, includes XML documentation summaries for returned type entries when available. 
-            Pass false to omit summaries.
+            Pass false to omit summaries. Defaults to false.
             """
         )]
-        bool? includeSummary = null,
+        bool includeSummary = false,
 
         [Description(
             """
@@ -58,16 +58,16 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
             This is not full member metadata: each member is returned as a single normalized accessibility-plus-signature 
             string, and only members declared on that type are included. Enrichment is applied only to the type entries 
             returned on the current page. Use list_members as the detailed follow-up tool. When omitted or false, 
-            members are omitted.
+            members are omitted. Defaults to false.
             """
         )]
-        bool? includeMembers = null,
+        bool includeMembers = false,
 
         [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
-        int? limit = null,
+        int limit = 100,
 
         [Description("Number of results to skip for pagination. Defaults to 0.")] 
-        int? offset = null)
+        int offset = 0)
     {
         return _codeUnderstandingService.ListTypesAsync(
             projectPath.ToListTypesRequest(projectName,

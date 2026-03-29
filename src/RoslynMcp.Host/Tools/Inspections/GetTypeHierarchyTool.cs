@@ -31,13 +31,13 @@ public sealed class GetTypeHierarchyTool(INavigationService navigationService)
 
         [Description(
             """
-            When true (default), includes all transitive base types and all derived types. When false, 
-            returns only immediate parents and children.
+            When true, includes all transitive base types and all derived types. When false, 
+            returns only immediate parents and children. Defaults to true.
             """
         )]
         bool includeTransitive = true,
 
-        [Description("Maximum number of derived types to return. Defaults to 200. Higher values may impact performance.")]
+        [Description("Maximum number of derived types to return. Higher values may impact performance. Defaults to 200.")]
         int maxDerived = 200)
     {
         return _navigationService.GetTypeHierarchyAsync(symbolId.ToGetTypeHierarchyRequest(includeTransitive, maxDerived),

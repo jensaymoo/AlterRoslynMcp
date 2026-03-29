@@ -47,7 +47,7 @@ public sealed class TraceCallFlowTool(IFlowTraceService flowTraceService)
             (what this calls). both returns both directions. Defaults to both.
             """
         )]
-        string? direction = null,
+        string direction = "both",
 
         [Description(
             """
@@ -55,7 +55,7 @@ public sealed class TraceCallFlowTool(IFlowTraceService flowTraceService)
             Null is treated the same as omitting the parameter.
             """
         )]
-        int? depth = null,
+        int depth = 2,
 
         [Description(
             """

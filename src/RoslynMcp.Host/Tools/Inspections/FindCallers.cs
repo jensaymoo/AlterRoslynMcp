@@ -26,7 +26,7 @@ public sealed class FindCallersTool(IFlowTraceService flowTraceService)
             immediate direct callers you want to inspect.
             """
         )]
-        string? symbolId = null)
+        string symbolId)
     {
         return _flowTraceService.TraceFlowAsync(symbolId.ToTraceFlowRequest(null, null, null, "upstream", 1, false),
             cancellationToken);

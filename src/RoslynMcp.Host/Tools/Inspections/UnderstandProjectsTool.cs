@@ -27,7 +27,7 @@ public sealed class UnderstandProjectsTool(ICodeUnderstandingService codeUnderst
             Defaults to standard.
             """
         )]
-            string? profile = null)
+            string profile = "standard")
     {
         return _codeUnderstandingService.UnderstandProjectsAsync(profile.ToUnderstandProjectsRequest(),
             cancellationToken);

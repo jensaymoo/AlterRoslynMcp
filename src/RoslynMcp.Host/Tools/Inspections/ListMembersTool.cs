@@ -43,13 +43,13 @@ public sealed class ListMembersTool(ICodeUnderstandingService codeUnderstandingS
         string? binding = null,
 
         [Description("When true, includes members from base classes. Defaults to false.")]
-        bool? includeInherited = null,
+        bool? includeInherited = false,
 
         [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
-        int? limit = null,
+        int? limit = 100,
 
         [Description("Number of results to skip for pagination. Defaults to 0.")]
-        int? offset = null)
+        int? offset = 0)
     {
         return _codeUnderstandingService.ListMembersAsync(
             typeSymbolId.ToListMembersRequest(path, line, column, kind, accessibility, binding, includeInherited,
