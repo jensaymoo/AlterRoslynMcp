@@ -16,8 +16,8 @@ namespace RoslynMcp.Infrastructure.Agent;
 /// Finds code smells in the codebase using Roslynator analyzers.
 /// Aggregates diagnostics by risk level (low, review_required, high) and category.
 /// </summary>
-public sealed class CodeSmellFindingService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService, ICurrentWorkspaceRootProvider currentWorkspaceRootProvider)
-    : ICodeSmellFindingService
+public sealed class CodeSmellService(IRoslynSolutionAccessor solutionAccessor, IRefactoringService refactoringService, ICurrentWorkspaceRootProvider currentWorkspaceRootProvider)
+    : ICodeSmellService
 {
     private const int MaximumScannedAnchors = 500;
     private static readonly string[] SupportedRiskLevels = ["low", "review_required", "high", "info"];

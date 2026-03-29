@@ -7,11 +7,8 @@ using RoslynMcp.Core.Models;
 namespace RoslynMcp.Host.Tools.Inspections;
 
 [McpServerToolType]
-public sealed class FindCodeSmellsTool(ICodeSmellFindingService codeSmellFindingService)
+public sealed class FindCodeSmellsTool(ICodeSmellService codeSmellService)
 {
-    private readonly ICodeSmellFindingService _codeSmellFindingService = 
-        codeSmellFindingService ?? throw new ArgumentNullException(nameof(codeSmellFindingService));
-
     [McpServerTool(Name = "find_codesmells", Title = "Find Code Smells", ReadOnly = true, Idempotent = true)]
     [Description(
         """
@@ -55,7 +52,7 @@ public sealed class FindCodeSmellsTool(ICodeSmellFindingService codeSmellFinding
         )]
         string? reviewMode = null)
     {
-        return _codeSmellFindingService.FindCodeSmellsAsync(
+        return codeSmellService.FindCodeSmellsAsync(
             path.ToFindCodeSmellsRequest(maxFindings, riskLevels, categories, reviewMode), cancellationToken);
     }
 }

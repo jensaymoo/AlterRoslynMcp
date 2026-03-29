@@ -9,9 +9,6 @@ namespace RoslynMcp.Host.Tools;
 [McpServerToolType]
 public sealed class LoadSolutionTool(IWorkspaceBootstrapService workspaceBootstrapService)
 {
-    private readonly IWorkspaceBootstrapService _workspaceBootstrapService = 
-        workspaceBootstrapService ?? throw new ArgumentNullException(nameof(workspaceBootstrapService));
-
     [McpServerTool(Name = "load_solution", Title = "Load Solution", ReadOnly = false, Idempotent = false)]
     [Description(
         """
@@ -31,7 +28,7 @@ public sealed class LoadSolutionTool(IWorkspaceBootstrapService workspaceBootstr
         )]
         string solutionHintPath)
     {
-        return _workspaceBootstrapService.LoadSolutionAsync(solutionHintPath.ToLoadSolutionRequest(),
+        return workspaceBootstrapService.LoadSolutionAsync(solutionHintPath.ToLoadSolutionRequest(),
             cancellationToken);
     }
 }
