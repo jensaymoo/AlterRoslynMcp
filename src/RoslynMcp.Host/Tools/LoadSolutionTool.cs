@@ -4,7 +4,7 @@ using RoslynMcp.Core;
 using RoslynMcp.Core.Contracts;
 using RoslynMcp.Core.Models;
 
-namespace RoslynMcp.Host.Tools.Inspections;
+namespace RoslynMcp.Host.Tools;
 
 [McpServerToolType]
 public sealed class LoadSolutionTool(IWorkspaceBootstrapService workspaceBootstrapService)
