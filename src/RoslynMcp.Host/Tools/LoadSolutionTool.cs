@@ -1,17 +1,19 @@
 using System.ComponentModel;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using RoslynMcp.Core;
-using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure._Refactored;
 
 namespace RoslynMcp.Host.Tools;
 
-[McpServerToolType]
-public sealed class LoadSolutionTool(IWorkspaceBootstrapService workspaceBootstrapService)
-{
-    private readonly IWorkspaceBootstrapService _workspaceBootstrapService = 
-        workspaceBootstrapService ?? throw new ArgumentNullException(nameof(workspaceBootstrapService));
+public sealed record LoadSolutionResult(string SolutionPath,
+    IEnumerable<ProjectSummary> Projects,
+    IEnumerable<Diagnostic> BaselineDiagnostics);
 
+public sealed record ProjectSummary(string Name, string? ProjectPath);
+
+[McpServerToolType]
+public sealed class LoadSolutionTool(ISolutionWorkspaceService solutionWorkspaceService, IAnalyzeSolutionService analyzeSolutionService)
+{
     [McpServerTool(Name = "load_solution", Title = "Load Solution", ReadOnly = false, Idempotent = false)]
     [Description(
         """
@@ -22,16 +24,24 @@ public sealed class LoadSolutionTool(IWorkspaceBootstrapService workspaceBootstr
         diagnostics alone.
         """
     )]
-    public Task<LoadSolutionResult> ExecuteAsync(CancellationToken cancellationToken,
-        [Description(
-            """
-            Absolute path to a `.sln` file, or to a directory used as the recursive discovery 
-            root for `.sln`/`.slnx` files.
-            """
-        )]
-        string solutionHintPath)
+    public async Task<LoadSolutionResult> ExecuteAsync(CancellationToken ct,
+        [Description("Absolute path to a `.sln / .snlx` file" )] string slnFilePath)
     {
-        return _workspaceBootstrapService.LoadSolutionAsync(solutionHintPath.ToLoadSolutionRequest(),
-            cancellationToken);
+        try
+        {
+            var solution = await solutionWorkspaceService.LoadSolutionAsync(slnFilePath, ct);
+            var analyzeResult = await analyzeSolutionService.AnalyzeSolutionAsync(solution, ct);
+            
+            var projects = solution.Projects
+                .OrderBy(static p => p.Name, StringComparer.Ordinal)
+                .Select(static p => new ProjectSummary(p.Name, p.FilePath));
+            
+            return new LoadSolutionResult(solution.FilePath!, projects, analyzeResult);
+        }
+        catch (Exception e)
+        {
+            throw new McpException(e.Message, e);
+        }
     }
 }
+

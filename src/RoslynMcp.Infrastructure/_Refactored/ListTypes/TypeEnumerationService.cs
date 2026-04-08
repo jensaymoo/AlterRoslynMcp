@@ -1,0 +1,118 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
+using RoslynMcp.Infrastructure.Agent;
+
+namespace RoslynMcp.Infrastructure._Refactored;
+
+public enum TypeEntryKind
+{
+    Record,
+    Class,
+    Struct,
+    Enum,
+    Interface,
+    Unknown
+}
+
+public enum TypeEntryAccessibility
+{
+    Public,
+    Internal,
+    Protected,
+    Private,
+    ProtectedInternal,
+    PrivateProtected,
+    NotApplicable
+}
+
+public sealed class TypeEntry
+{
+    public required string DisplayName { get; init; }
+    public required string Namespace { get; init; }
+    public required string SymbolId { get; init; }
+    public required IEnumerable<SourceLocation?> Location { get; init; }
+    
+    public required TypeEntryAccessibility Accessibility { get; init; }
+    public required TypeEntryKind Kind { get; init; }
+    public required string? Summary { get; init; }
+}
+
+public class TypeEnumerationService(ILogger<TypeEnumerationService> logger): ITypeEnumerationService
+{
+    public async Task<IEnumerable<TypeEntry>> EnumerateTypesAsync(Project project, bool includeSummary, CancellationToken ct = default)
+    {
+        try
+        {
+            if (await project.GetCompilationAsync(ct) is { } compilation)
+            {
+                var projectTrees = await Task.WhenAll(
+                    project.Documents
+                        .Where(d => d.SupportsSyntaxTree)
+                        .Select(d => d.GetSyntaxTreeAsync(ct))
+                );
+                var types = compilation.GlobalNamespace.EnumerateTypes()
+                    .Where(type => type.DeclaringSyntaxReferences
+                        .Select(r => r.SyntaxTree).Any(projectTrees.Contains))
+                    .Select(type => new TypeEntry
+                    {
+                        
+                        Accessibility = GetTypeEntryAccessibility(type),
+                        Kind = GetTypeEntryKind(type),
+                        DisplayName = type.Name,
+                        Namespace = type.ContainingNamespace.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        SymbolId = type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                        Location = type.Locations.AsSourceLocations(),
+                        Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
+                    });
+                
+                return OrderTypes(types);
+            }
+            else
+            {
+                return Array.Empty<TypeEntry>();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error during type enumeration");
+            throw;
+        }
+        
+    }
+    
+    private static TypeEntryKind GetTypeEntryKind(INamedTypeSymbol symbol)
+    {
+        if (symbol.IsRecord)
+            return TypeEntryKind.Record;
+
+        return symbol.TypeKind switch
+        {
+            TypeKind.Class => TypeEntryKind.Class,
+            TypeKind.Interface => TypeEntryKind.Interface,
+            TypeKind.Enum => TypeEntryKind.Enum,
+            TypeKind.Struct => TypeEntryKind.Struct,
+            _ => TypeEntryKind.Unknown
+        };
+    }
+
+    private static TypeEntryAccessibility GetTypeEntryAccessibility(INamedTypeSymbol symbol)
+    {
+        return symbol.DeclaredAccessibility switch
+        {
+            Accessibility.Internal => TypeEntryAccessibility.Internal,
+            Accessibility.Private => TypeEntryAccessibility.Private,
+            Accessibility.Protected => TypeEntryAccessibility.Protected,
+            Accessibility.Public => TypeEntryAccessibility.Public,
+            Accessibility.ProtectedAndInternal => TypeEntryAccessibility.PrivateProtected,
+            Accessibility.ProtectedOrInternal => TypeEntryAccessibility.ProtectedInternal,
+            _ => TypeEntryAccessibility.NotApplicable
+        };
+    }
+
+    private IEnumerable<TypeEntry> OrderTypes(IEnumerable<TypeEntry> entries)
+        => entries
+            .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
+            .ThenBy(item => item.SymbolId, StringComparer.Ordinal)
+            .ToArray();
+
+}

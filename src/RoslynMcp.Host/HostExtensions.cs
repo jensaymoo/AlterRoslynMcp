@@ -5,6 +5,8 @@ using ModelContextProtocol.Protocol;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using RoslynMcp.Host.Tools;
+using RoslynMcp.Host.Tools.Inspections;
 
 namespace RoslynMcp.Host;
 
@@ -21,6 +23,7 @@ internal static class HostExtensions
         {
             var serializerOptions = new JsonSerializerOptions
             {
+                Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) },
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
                 TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
@@ -39,7 +42,10 @@ internal static class HostExtensions
             });
 
             builder.WithStdioServerTransport();
-            builder.WithToolsFromAssembly(serializerOptions: serializerOptions);
+            builder.WithTools<LoadSolutionTool>(serializerOptions);
+            builder.WithTools<ListTypesTool>(serializerOptions);
+            
+            //builder.WithToolsFromAssembly(serializerOptions: serializerOptions);
         }
     }
 }

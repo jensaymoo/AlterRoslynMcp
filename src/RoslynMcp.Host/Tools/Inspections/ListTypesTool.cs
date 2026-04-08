@@ -1,17 +1,18 @@
 using System.ComponentModel;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using RoslynMcp.Core;
-using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models;
+using RoslynMcp.Infrastructure._Refactored;
 
 namespace RoslynMcp.Host.Tools.Inspections;
 
-[McpServerToolType]
-public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingService)
-{
-    private readonly ICodeUnderstandingService _codeUnderstandingService = 
-        codeUnderstandingService ?? throw new ArgumentNullException(nameof(codeUnderstandingService));
 
+public sealed record ListTypesResult(
+    ProjectSummary Project,
+    IEnumerable<TypeEntry> Types);
+
+[McpServerToolType]
+public sealed class ListTypesTool(ISolutionWorkspaceService solutionWorkspaceService, ITypeEnumerationService typeEnumerationService )
+{
     [McpServerTool(Name = "list_types", Title = "List Types", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to list types declared in a specific loaded project. It is useful for " +
                  "project-scoped discovery, for finding type symbols before follow-up calls such as list_members or " +
@@ -19,30 +20,30 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
                  "lightweight declared-member previews. For automation, prefer projectPath as the stable selector; " +
                  "projectId is snapshot-local to the active workspace snapshot. Results prefer handwritten declarations " +
                  "by default and report source bias, completeness, and degraded discovery hints.")]
-    public Task<ListTypesResult> ExecuteAsync(CancellationToken cancellationToken,
-        [Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId." )]
-        string? projectPath = null,
+    public async Task<IEnumerable<ListTypesResult>> ExecuteAsync(CancellationToken ct,
+        /*[Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId." )]
+        string? projectPath = null,*/
 
         [Description("Name of a project. Specify only one of projectPath, projectName, or projectId." )]
-        string? projectName = null,
+        string projectName,
 
-        [Description(
+        /*[Description(
             """
             Project identifier from the current loaded workspace snapshot. projectId values are snapshot-local 
             and can change after reload, so prefer projectPath for durable automation. Specify only one of 
             projectPath, projectName, or projectId.
             """
         )]
-        string? projectId = null,
+        string? projectId = null,*/
 
         [Description("Filter to only types in namespaces starting with this prefix." )]
         string? namespacePrefix = null,
 
         [Description("Filter by type kind: class, record, interface, enum, or struct." )]
-        string? kind = null,
+        TypeEntryKind? kind = null,
 
         [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
-        string? accessibility = null,
+        TypeEntryAccessibility? accessibility = null,
 
         [Description(
             """
@@ -61,18 +62,42 @@ public sealed class ListTypesTool(ICodeUnderstandingService codeUnderstandingSer
             members are omitted. Defaults to false.
             """
         )]
-        bool includeMembers = false,
-
-        [Description("Maximum number of results to return. Defaults to 100, maximum 500.")]
-        int limit = 100,
-
-        [Description("Number of results to skip for pagination. Defaults to 0.")] 
-        int offset = 0)
+        bool includeMembers = false)
     {
-        return _codeUnderstandingService.ListTypesAsync(
-            projectPath.ToListTypesRequest(projectName,
-                projectId, namespacePrefix, kind, accessibility, includeSummary,
-                includeMembers, limit, offset),
-            cancellationToken);
+        try
+        {
+            var solution = solutionWorkspaceService.GetCurrentSolution();
+            var projects = solution.Projects
+                .Where(x => x.Name.Equals(projectName.Trim(), StringComparison.InvariantCultureIgnoreCase));
+        
+        
+            var result =  new List<ListTypesResult>();
+            foreach (var project in projects)
+            {
+                var types = await typeEnumerationService.EnumerateTypesAsync(project, includeSummary, ct);
+
+                var filtered = types
+                    .Where(x => string.IsNullOrEmpty(namespacePrefix) || 
+                                x.Namespace?.StartsWith(namespacePrefix) == true)
+                    .Where(x => kind == null || x.Kind.Equals(kind))
+                    .Where(x => accessibility == null || x.Accessibility.Equals(accessibility));
+            
+                result.Add(new ListTypesResult(new ProjectSummary(project.Name, project.FilePath), filtered));
+            }
+
+            return result;
+        }
+        catch (SolutionNotLoadedException)
+        {
+            throw new McpException("""
+                                   Solution not loaded. Before performing any operations, you must first load the 
+                                   project using the `load_solution` tool. Ensure the solution is successfully loaded 
+                                   and available in the current context, then proceed with further actions.
+                                   """);
+        }
+        catch (Exception e)
+        {
+            throw new McpException(e.Message, e);
+        }
     }
 }
