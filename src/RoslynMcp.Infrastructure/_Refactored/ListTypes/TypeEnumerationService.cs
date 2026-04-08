@@ -1,7 +1,5 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.SymbolDisplay;
 using Microsoft.Extensions.Logging;
-using RoslynMcp.Infrastructure.Agent;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
@@ -38,7 +36,9 @@ public sealed class TypeEntry
     public required string? Summary { get; init; }
 }
 
-public class TypeEnumerationService(ILogger<TypeEnumerationService> logger): ITypeEnumerationService
+public class TypeEnumerationService(
+    ILogger<TypeEnumerationService> logger,
+    ITypeResolverService typeResolverService): ITypeEnumerationService
 {
     public async Task<IEnumerable<TypeEntry>> EnumerateTypesAsync(Project project, bool includeSummary, CancellationToken ct = default)
     {
@@ -51,17 +51,16 @@ public class TypeEnumerationService(ILogger<TypeEnumerationService> logger): ITy
                         .Where(d => d.SupportsSyntaxTree)
                         .Select(d => d.GetSyntaxTreeAsync(ct))
                 );
-                var types = compilation.GlobalNamespace.EnumerateTypes()
+                var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
                     .Where(type => type.DeclaringSyntaxReferences
                         .Select(r => r.SyntaxTree).Any(projectTrees.Contains))
                     .Select(type => new TypeEntry
                      {
                          
                          Accessibility = GetTypeEntryAccessibility(type),
-                         Kind = GetTypeEntryKind(type),
-                         DisplayName = type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                         Namespace = type.ContainingNamespace.ToDisplayString(
-    SymbolDisplayFormat.FullyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.OmittedAsContaining)),
+                           Kind = GetTypeEntryKind(type),
+                           DisplayName = typeResolverService.GetDisplayName(type),
+                           Namespace = typeResolverService.GetDisplayNamespace(type),
                          SymbolId = type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                          Location = type.Locations.AsSourceLocations(),
                          Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
