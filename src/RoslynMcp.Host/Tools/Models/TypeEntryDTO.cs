@@ -6,7 +6,7 @@ public record TypeEntryDTO
 (
     string SymbolName,
     IEnumerable<SourceLocationDTO> Location,
-    TypeEntryAccessibility Accessibility,
+    SymbolAccessibility Accessibility,
     TypeEntryKind Kind,
     string? Summary
 );

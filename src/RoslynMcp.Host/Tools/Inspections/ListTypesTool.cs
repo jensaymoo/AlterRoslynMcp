@@ -32,7 +32,7 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
         TypeEntryKind? kind = null,
 
         [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
-        TypeEntryAccessibility? accessibility = null,
+        SymbolAccessibility? accessibility = null,
 
         [Description(
             """

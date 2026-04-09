@@ -1,10 +1,9 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.SymbolDisplay;
-using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class TypeResolverService(ILogger<TypeResolverService> logger) : ITypeResolverService
+public class TypeResolverService : ITypeResolverService
 {
     public string GetDisplayName(INamedTypeSymbol namedType)
     {

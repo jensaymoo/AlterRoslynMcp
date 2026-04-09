@@ -13,17 +13,6 @@ public enum TypeEntryKind
     Unknown
 }
 
-public enum TypeEntryAccessibility
-{
-    Public,
-    Internal,
-    Protected,
-    Private,
-    ProtectedInternal,
-    PrivateProtected,
-    NotApplicable
-}
-
 public sealed class TypeEntry
 {
     public required string SymbolName { get; init; }
@@ -31,7 +20,7 @@ public sealed class TypeEntry
     
     public required IEnumerable<SourceLocation> Location { get; init; }
     
-    public required TypeEntryAccessibility Accessibility { get; init; }
+    public required SymbolAccessibility Accessibility { get; init; }
     public required TypeEntryKind Kind { get; init; }
     
     public required string? Summary { get; init; }
@@ -106,17 +95,17 @@ public class TypeEnumerationService(
         };
     }
 
-    private static TypeEntryAccessibility GetTypeEntryAccessibility(INamedTypeSymbol symbol)
+    private static SymbolAccessibility GetTypeEntryAccessibility(INamedTypeSymbol symbol)
     {
         return symbol.DeclaredAccessibility switch
         {
-            Accessibility.Internal => TypeEntryAccessibility.Internal,
-            Accessibility.Private => TypeEntryAccessibility.Private,
-            Accessibility.Protected => TypeEntryAccessibility.Protected,
-            Accessibility.Public => TypeEntryAccessibility.Public,
-            Accessibility.ProtectedAndInternal => TypeEntryAccessibility.PrivateProtected,
-            Accessibility.ProtectedOrInternal => TypeEntryAccessibility.ProtectedInternal,
-            _ => TypeEntryAccessibility.NotApplicable
+            Microsoft.CodeAnalysis.Accessibility.Internal => SymbolAccessibility.Internal,
+            Microsoft.CodeAnalysis.Accessibility.Private => SymbolAccessibility.Private,
+            Microsoft.CodeAnalysis.Accessibility.Protected => SymbolAccessibility.Protected,
+            Microsoft.CodeAnalysis.Accessibility.Public => SymbolAccessibility.Public,
+            Microsoft.CodeAnalysis.Accessibility.ProtectedAndInternal => SymbolAccessibility.PrivateProtected,
+            Microsoft.CodeAnalysis.Accessibility.ProtectedOrInternal => SymbolAccessibility.ProtectedInternal,
+            _ => SymbolAccessibility.NotApplicable
         };
     }
 
