@@ -3,32 +3,6 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public enum TypeEntryKind
-{
-    Record,
-    Class,
-    Struct,
-    Enum,
-    Interface,
-    Unknown
-}
-
-public sealed class TypeEntry
-{
-    public required string SymbolName { get; init; }
-    public required string Namespace { get; init; }
-    
-    public required IEnumerable<SourceLocation> Location { get; init; }
-    
-    public required SymbolAccessibility Accessibility { get; init; }
-    public required TypeEntryKind Kind { get; init; }
-    
-    public required string? Summary { get; init; }
-    
-    public required string ProjectName { get; init; }
-    public required string? ProjectPath { get; init; }
-}
-
 public class TypeEnumerationService(
     ILogger<TypeEnumerationService> logger,
     ITypeResolverService typeResolverService,
