@@ -15,15 +15,15 @@ namespace RoslynMcp.Host.Tools.Inspections;
 public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService)
 {
     [McpServerTool(Name = "list_types", Title = "List Types", ReadOnly = true, Idempotent = true)]
-    [Description("Use this tool when you need to list types declared in a specific loaded project. It is useful for " +
-                 "project-scoped discovery, for finding type symbols before follow-up calls such as list_members or " +
-                 "resolve_symbol, and for optionally enriching only the returned type entries with XML summaries or " +
-                 "lightweight declared-member previews. For automation, prefer projectPath as the stable selector; " +
-                 "projectId is snapshot-local to the active workspace snapshot. Results prefer handwritten declarations " +
+    [Description("Use this tool to list types declared in loaded projects. When projectName is omitted, " +
+                 "returns types from all projects. When specified, filters to types in that project. " +
+                 "Useful for project-scoped discovery, for finding type symbols before follow-up calls such as " +
+                 "list_members or resolve_symbol, and for optionally enriching only the returned type entries " +
+                 "with XML summaries or lightweight declared-member previews. Results prefer handwritten declarations " +
                  "by default and report source bias, completeness, and degraded discovery hints.")]
     public async Task<IEnumerable<ListTypesResultDTO>> ExecuteAsync(CancellationToken ct,
-        [Description("Name of a project. Specify only one of projectPath, projectName, or projectId." )]
-        string projectName,
+        [Description("Name of a project. When omitted or empty, returns types from all projects.")]
+        string? projectName = null,
 
         [Description("Filter to only types in namespaces starting with this prefix." )]
         string? namespacePrefix = null,
@@ -57,8 +57,9 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
         {
             var allTypes = await typeEnumerationService.EnumerateTypesBySolutionAsync(includeSummary, ct);
             
-            var filteredByProject = allTypes
-                .Where(x => x.ProjectName.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase));
+            var filteredByProject = string.IsNullOrWhiteSpace(projectName)
+                ? allTypes
+                : allTypes.Where(x => x.ProjectName.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase));
 
             var filtered = filteredByProject
                 .Where(x => string.IsNullOrEmpty(namespacePrefix) || 
