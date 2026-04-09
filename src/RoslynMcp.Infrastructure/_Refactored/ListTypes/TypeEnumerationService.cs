@@ -28,7 +28,6 @@ public sealed class TypeEntry
 {
     public required string DisplayName { get; init; }
     public required string Namespace { get; init; }
-    public required string SymbolId { get; init; }
     public required IEnumerable<SourceLocation?> Location { get; init; }
     
     public required TypeEntryAccessibility Accessibility { get; init; }
@@ -70,7 +69,6 @@ public class TypeEnumerationService(
                             Kind = GetTypeEntryKind(type),
                             DisplayName = typeResolverService.GetDisplayName(type),
                             Namespace = typeResolverService.GetDisplayNamespace(type),
-                            SymbolId = type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                             Location = type.Locations.AsSourceLocations(),
                             Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
                             ProjectName = project.Name,
@@ -123,7 +121,6 @@ public class TypeEnumerationService(
     private IEnumerable<TypeEntry> OrderTypes(IEnumerable<TypeEntry> entries)
         => entries
             .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
-            .ThenBy(item => item.SymbolId, StringComparer.Ordinal)
             .ToArray();
 
 }
