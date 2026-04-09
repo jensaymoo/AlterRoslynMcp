@@ -7,9 +7,7 @@ namespace RoslynMcp.Infrastructure._Refactored;
 public class MembersEnumerationService(
     ILogger<MembersEnumerationService> logger,
     ITypeResolverService typeResolverService,
-    ISolutionWorkspaceService solutionWorkspaceService,
-    IMemberExtractor memberExtractor,
-    IMembersInheritanceCollector inheritanceCollector) : IMembersEnumerationService
+    ISolutionWorkspaceService solutionWorkspaceService) : IMembersEnumerationService
 {
     public Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
         string fullTypeName,
@@ -47,7 +45,7 @@ public class MembersEnumerationService(
         }
 
         var members = includeInherited
-            ? inheritanceCollector.CollectWithInheritance(typeSymbol)
+            ? new MembersInheritanceCollector(typeSymbol).CollectWithInheritance()
             : typeSymbol.GetMembers();
 
         var entries = members
@@ -65,13 +63,14 @@ public class MembersEnumerationService(
     {
         var isInherited = member.ContainingType != null && !SymbolEqualityComparer.Default.Equals(member.ContainingType, sourceType);
 
+        var memberExtractor = new MemberExtractor(member);
         return new MemberEntry
         {
-            DisplayName = memberExtractor.GetDisplayName(member),
-            Signature = memberExtractor.GetSignature(member),
-            Kind = memberExtractor.GetKind(member),
+            DisplayName = memberExtractor.GetDisplayName(),
+            Signature = memberExtractor.GetSignature(),
+            Kind = memberExtractor.GetKind(),
             Accessibility = GetAccessibility(member),
-            IsStatic = memberExtractor.GetIsStatic(member),
+            IsStatic = memberExtractor.GetIsStatic(),
             IsInherited = isInherited,
             Location = member.Locations.FirstOrDefault(l => l.IsInSource)?.AsSourceLocation(),
             Summary = includeSummary ? GetSummary(member) : null

@@ -3,9 +3,9 @@ using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class MembersInheritanceCollector : IMembersInheritanceCollector
+public class MembersInheritanceCollector(INamedTypeSymbol type)
 {
-    public ImmutableArray<ISymbol> CollectWithInheritance(INamedTypeSymbol type)
+    public ImmutableArray<ISymbol> CollectWithInheritance()
     {
         var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var builder = ImmutableArray.CreateBuilder<ISymbol>();
@@ -27,18 +27,18 @@ public class MembersInheritanceCollector : IMembersInheritanceCollector
         return builder.ToImmutable();
     }
 
-    private static IEnumerable<INamedTypeSymbol> Traverse(INamedTypeSymbol type)
+    private static IEnumerable<INamedTypeSymbol> Traverse(INamedTypeSymbol currentType)
     {
-        yield return type;
+        yield return currentType;
 
-        var baseType = type.BaseType;
+        var baseType = currentType.BaseType;
         while (baseType != null)
         {
             yield return baseType;
             baseType = baseType.BaseType;
         }
 
-        foreach (var iface in type.AllInterfaces.OrderBy(i => i.ToDisplayString(), StringComparer.Ordinal))
+        foreach (var iface in currentType.AllInterfaces.OrderBy(i => i.ToDisplayString(), StringComparer.Ordinal))
             yield return iface;
     }
 

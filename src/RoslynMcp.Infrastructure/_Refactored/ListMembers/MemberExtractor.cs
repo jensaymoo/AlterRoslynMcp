@@ -4,9 +4,9 @@ using Microsoft.CodeAnalysis.SymbolDisplay;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class MemberExtractor : IMemberExtractor
+public class MemberExtractor(ISymbol member)
 {
-    public string GetDisplayName(ISymbol member)
+    public string GetDisplayName()
     {
         if (member.Kind == SymbolKind.Method && member is IMethodSymbol { MethodKind: MethodKind.Constructor })
             return ((IMethodSymbol)member).ContainingType.Name;
@@ -14,7 +14,7 @@ public class MemberExtractor : IMemberExtractor
         return member.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
     }
 
-    public string GetSignature(ISymbol member)
+    public string GetSignature()
     {
         return member switch
         {
@@ -28,7 +28,7 @@ public class MemberExtractor : IMemberExtractor
         };
     }
 
-    public MemberEntryKind GetKind(ISymbol member)
+    public MemberEntryKind GetKind()
     {
         return member switch
         {
@@ -41,7 +41,7 @@ public class MemberExtractor : IMemberExtractor
         };
     }
 
-    public bool GetIsStatic(ISymbol member)
+    public bool GetIsStatic()
     {
         return member.IsStatic;
     }
