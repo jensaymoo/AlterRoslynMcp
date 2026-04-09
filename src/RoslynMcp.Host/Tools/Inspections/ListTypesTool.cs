@@ -22,20 +22,8 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                  "projectId is snapshot-local to the active workspace snapshot. Results prefer handwritten declarations " +
                  "by default and report source bias, completeness, and degraded discovery hints.")]
     public async Task<IEnumerable<ListTypesResultDTO>> ExecuteAsync(CancellationToken ct,
-        /*[Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId." )]
-        string? projectPath = null,*/
-
         [Description("Name of a project. Specify only one of projectPath, projectName, or projectId." )]
         string projectName,
-
-        /*[Description(
-            """
-            Project identifier from the current loaded workspace snapshot. projectId values are snapshot-local 
-            and can change after reload, so prefer projectPath for durable automation. Specify only one of 
-            projectPath, projectName, or projectId.
-            """
-        )]
-        string? projectId = null,*/
 
         [Description("Filter to only types in namespaces starting with this prefix." )]
         string? namespacePrefix = null,
@@ -77,20 +65,32 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                             x.Namespace?.StartsWith(namespacePrefix) == true)
                 .Where(x => kind == null || x.Kind.Equals(kind))
                 .Where(x => accessibility == null || x.Accessibility.Equals(accessibility));
-
+            
             var groupedByProject = filtered
                 .GroupBy(x => x.ProjectName)
-                .Select(g => new ListTypesResultDTO(
-                    new ProjectSummaryDTO(g.Key, g.First().ProjectPath),
-                    g.Select(x=> new TypeEntryDTO(
-                        x.SymbolName,
-                        x.Location
-                            .Select(loc =>  
-                                new SourceLocationDTO(loc.FilePath,loc.Column,loc.Line)),
-                        x.Accessibility,
-                        x.Kind,
-                        x.Summary
-                    ))));
+                .Select(g =>
+                {
+                    var firstProject = g.First();
+
+                    return new ListTypesResultDTO(
+                        new ProjectSummaryDTO(g.Key, firstProject.ProjectPath),
+                        g.GroupBy(x => x.SymbolName)
+                            .Select(typeGroup =>
+                            {
+                                var firstType = typeGroup.First();
+
+                                return new TypeEntryDTO(
+                                    typeGroup.Key,
+                                    typeGroup.SelectMany(x => x.Location)
+                                        .Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line))
+                                        .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
+                                    firstType.Accessibility,
+                                    firstType.Kind,
+                                    firstType.Summary
+                                );
+                            })
+                    );
+                });
 
             return groupedByProject;
         }
