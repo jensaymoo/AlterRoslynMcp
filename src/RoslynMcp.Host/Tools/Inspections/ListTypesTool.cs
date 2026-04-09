@@ -11,7 +11,7 @@ public sealed record ListTypesResult(
     IEnumerable<TypeEntry> Types);
 
 [McpServerToolType]
-public sealed class ListTypesTool(ISolutionWorkspaceService solutionWorkspaceService, ITypeEnumerationService typeEnumerationService )
+public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService)
 {
     [McpServerTool(Name = "list_types", Title = "List Types", ReadOnly = true, Idempotent = true)]
     [Description("Use this tool when you need to list types declared in a specific loaded project. It is useful for " +
@@ -66,26 +66,24 @@ public sealed class ListTypesTool(ISolutionWorkspaceService solutionWorkspaceSer
     {
         try
         {
-            var solution = solutionWorkspaceService.GetCurrentSolution();
-            var projects = solution.Projects
-                .Where(x => x.Name.Equals(projectName.Trim(), StringComparison.InvariantCultureIgnoreCase));
-        
-        
-            var result =  new List<ListTypesResult>();
-            foreach (var project in projects)
-            {
-                var types = await typeEnumerationService.EnumerateTypesAsync(project, includeSummary, ct);
-
-                var filtered = types
-                    .Where(x => string.IsNullOrEmpty(namespacePrefix) || 
-                                x.Namespace?.StartsWith(namespacePrefix) == true)
-                    .Where(x => kind == null || x.Kind.Equals(kind))
-                    .Where(x => accessibility == null || x.Accessibility.Equals(accessibility));
+            var allTypes = await typeEnumerationService.EnumerateTypesBySolutionAsync(includeSummary, ct);
             
-                result.Add(new ListTypesResult(new ProjectSummary(project.Name, project.FilePath), filtered));
-            }
+            var filteredByProject = allTypes
+                .Where(x => x.ProjectName.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase));
 
-            return result;
+            var filtered = filteredByProject
+                .Where(x => string.IsNullOrEmpty(namespacePrefix) || 
+                            x.Namespace?.StartsWith(namespacePrefix) == true)
+                .Where(x => kind == null || x.Kind.Equals(kind))
+                .Where(x => accessibility == null || x.Accessibility.Equals(accessibility));
+
+            var groupedByProject = filtered
+                .GroupBy(x => x.ProjectName)
+                .Select(g => new ListTypesResult(
+                    new ProjectSummary(g.Key, g.First().ProjectPath),
+                    g.AsEnumerable()));
+
+            return groupedByProject;
         }
         catch (SolutionNotLoadedException)
         {

@@ -34,44 +34,54 @@ public sealed class TypeEntry
     public required TypeEntryAccessibility Accessibility { get; init; }
     public required TypeEntryKind Kind { get; init; }
     public required string? Summary { get; init; }
+    
+    public required string ProjectName { get; init; }
+    public required string? ProjectPath { get; init; }
 }
 
 public class TypeEnumerationService(
     ILogger<TypeEnumerationService> logger,
-    ITypeResolverService typeResolverService): ITypeEnumerationService
+    ITypeResolverService typeResolverService,
+    ISolutionWorkspaceService solutionWorkspaceService): ITypeEnumerationService
 {
-    public async Task<IEnumerable<TypeEntry>> EnumerateTypesAsync(Project project, bool includeSummary, CancellationToken ct = default)
+    public async Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(bool includeSummary, CancellationToken ct = default)
     {
         try
         {
-            if (await project.GetCompilationAsync(ct) is { } compilation)
+            var solution = solutionWorkspaceService.GetCurrentSolution();
+            var allTypes = new List<TypeEntry>();
+            
+            foreach (var project in solution.Projects)
             {
-                var projectTrees = await Task.WhenAll(
-                    project.Documents
-                        .Where(d => d.SupportsSyntaxTree)
-                        .Select(d => d.GetSyntaxTreeAsync(ct))
-                );
-                var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
-                    .Where(type => type.DeclaringSyntaxReferences
-                        .Select(r => r.SyntaxTree).Any(projectTrees.Contains))
-                    .Select(type => new TypeEntry
-                     {
-                         
-                         Accessibility = GetTypeEntryAccessibility(type),
-                           Kind = GetTypeEntryKind(type),
-                           DisplayName = typeResolverService.GetDisplayName(type),
-                           Namespace = typeResolverService.GetDisplayNamespace(type),
-                         SymbolId = type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                         Location = type.Locations.AsSourceLocations(),
-                         Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
-                     });
-                
-                return OrderTypes(types);
+                if (await project.GetCompilationAsync(ct) is { } compilation)
+                {
+                    var projectTrees = await Task.WhenAll(
+                        project.Documents
+                            .Where(d => d.SupportsSyntaxTree)
+                            .Select(d => d.GetSyntaxTreeAsync(ct))
+                    );
+                    
+                    var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
+                        .Where(type => type.DeclaringSyntaxReferences
+                            .Select(r => r.SyntaxTree).Any(projectTrees.Contains))
+                        .Select(type => new TypeEntry
+                        {
+                            Accessibility = GetTypeEntryAccessibility(type),
+                            Kind = GetTypeEntryKind(type),
+                            DisplayName = typeResolverService.GetDisplayName(type),
+                            Namespace = typeResolverService.GetDisplayNamespace(type),
+                            SymbolId = type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                            Location = type.Locations.AsSourceLocations(),
+                            Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
+                            ProjectName = project.Name,
+                            ProjectPath = project.FilePath,
+                        });
+                    
+                    allTypes.AddRange(types);
+                }
             }
-            else
-            {
-                return Array.Empty<TypeEntry>();
-            }
+            
+            return OrderTypes(allTypes);
         }
         catch (Exception ex)
         {

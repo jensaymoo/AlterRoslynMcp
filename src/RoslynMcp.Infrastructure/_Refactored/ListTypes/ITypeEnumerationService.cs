@@ -4,5 +4,5 @@ namespace RoslynMcp.Infrastructure._Refactored;
 
 public interface ITypeEnumerationService : IScopedService
 {
-    Task<IEnumerable<TypeEntry>> EnumerateTypesAsync(Project project, bool includeSummary, CancellationToken ct);
+    Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(bool includeSummary, CancellationToken ct);
 }
