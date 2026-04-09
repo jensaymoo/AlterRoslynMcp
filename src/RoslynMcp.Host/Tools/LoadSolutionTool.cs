@@ -1,15 +1,10 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using RoslynMcp.Host.Tools.Models;
 using RoslynMcp.Infrastructure._Refactored;
 
 namespace RoslynMcp.Host.Tools;
-
-public sealed record LoadSolutionResult(string SolutionPath,
-    IEnumerable<ProjectSummary> Projects,
-    IEnumerable<Diagnostic> BaselineDiagnostics);
-
-public sealed record ProjectSummary(string Name, string? ProjectPath);
 
 [McpServerToolType]
 public sealed class LoadSolutionTool(ISolutionWorkspaceService solutionWorkspaceService, IAnalyzeSolutionService analyzeSolutionService)
@@ -24,19 +19,28 @@ public sealed class LoadSolutionTool(ISolutionWorkspaceService solutionWorkspace
         diagnostics alone.
         """
     )]
-    public async Task<LoadSolutionResult> ExecuteAsync(CancellationToken ct,
+    public async Task<LoadSolutionResultDTO> ExecuteAsync(CancellationToken ct,
         [Description("Absolute path to a `.sln / .snlx` file" )] string slnFilePath)
     {
         try
         {
             var solution = await solutionWorkspaceService.LoadSolutionAsync(slnFilePath, ct);
-            var analyzeResult = await analyzeSolutionService.AnalyzeSolutionAsync(solution, ct);
+            var diagnostic = await analyzeSolutionService.AnalyzeSolutionAsync(solution, ct);
+
+            var result = diagnostic
+                .Select(x => new DiagnosticDTO(
+                    x.Code,
+                    x.Severity,
+                    x.Message,
+                    x.Location is null ? null 
+                        : new SourceLocationDTO(x.Location.FilePath,x.Location.Column,x.Location.Line)
+                ));
             
             var projects = solution.Projects
                 .OrderBy(static p => p.Name, StringComparer.Ordinal)
-                .Select(static p => new ProjectSummary(p.Name, p.FilePath));
+                .Select(static p => new ProjectSummaryDTO(p.Name, p.FilePath));
             
-            return new LoadSolutionResult(solution.FilePath!, projects, analyzeResult);
+            return new LoadSolutionResultDTO(solution.FilePath!, projects, result);
         }
         catch (Exception e)
         {

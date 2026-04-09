@@ -26,12 +26,14 @@ public enum TypeEntryAccessibility
 
 public sealed class TypeEntry
 {
-    public required string DisplayName { get; init; }
+    public required string SymbolName { get; init; }
     public required string Namespace { get; init; }
-    public required IEnumerable<SourceLocation?> Location { get; init; }
+    
+    public required IEnumerable<SourceLocation> Location { get; init; }
     
     public required TypeEntryAccessibility Accessibility { get; init; }
     public required TypeEntryKind Kind { get; init; }
+    
     public required string? Summary { get; init; }
     
     public required string ProjectName { get; init; }
@@ -67,7 +69,7 @@ public class TypeEnumerationService(
                         {
                             Accessibility = GetTypeEntryAccessibility(type),
                             Kind = GetTypeEntryKind(type),
-                            DisplayName = typeResolverService.GetDisplayName(type),
+                            SymbolName = typeResolverService.GetDisplayName(type),
                             Namespace = typeResolverService.GetDisplayNamespace(type),
                             Location = type.Locations.AsSourceLocations(),
                             Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
@@ -120,7 +122,7 @@ public class TypeEnumerationService(
 
     private IEnumerable<TypeEntry> OrderTypes(IEnumerable<TypeEntry> entries)
         => entries
-            .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
+            .OrderBy(item => item.SymbolName, StringComparer.Ordinal)
             .ToArray();
 
 }

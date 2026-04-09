@@ -20,8 +20,10 @@ internal static class SourceLocationExtension
         };
     }
 
-    public static IEnumerable<SourceLocation?> AsSourceLocations(this IEnumerable<Location> locations)
+    public static IEnumerable<SourceLocation> AsSourceLocations(this IEnumerable<Location> locations)
     {
-        return locations.Select(l => l.AsSourceLocation());
+        return locations
+            .Select(l => l.AsSourceLocation())
+            .OfType<SourceLocation>();
     }
 }

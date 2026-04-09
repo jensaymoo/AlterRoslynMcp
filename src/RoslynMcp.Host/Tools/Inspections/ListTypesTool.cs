@@ -1,14 +1,15 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using RoslynMcp.Host.Tools.Models;
 using RoslynMcp.Infrastructure._Refactored;
 
 namespace RoslynMcp.Host.Tools.Inspections;
 
 
-public sealed record ListTypesResult(
-    ProjectSummary Project,
-    IEnumerable<TypeEntry> Types);
+
+
+
 
 [McpServerToolType]
 public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService)
@@ -20,7 +21,7 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                  "lightweight declared-member previews. For automation, prefer projectPath as the stable selector; " +
                  "projectId is snapshot-local to the active workspace snapshot. Results prefer handwritten declarations " +
                  "by default and report source bias, completeness, and degraded discovery hints.")]
-    public async Task<IEnumerable<ListTypesResult>> ExecuteAsync(CancellationToken ct,
+    public async Task<IEnumerable<ListTypesResultDTO>> ExecuteAsync(CancellationToken ct,
         /*[Description("Exact path to a project file (.csproj). Specify only one of projectPath, projectName, or projectId." )]
         string? projectPath = null,*/
 
@@ -79,9 +80,17 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
 
             var groupedByProject = filtered
                 .GroupBy(x => x.ProjectName)
-                .Select(g => new ListTypesResult(
-                    new ProjectSummary(g.Key, g.First().ProjectPath),
-                    g.AsEnumerable()));
+                .Select(g => new ListTypesResultDTO(
+                    new ProjectSummaryDTO(g.Key, g.First().ProjectPath),
+                    g.Select(x=> new TypeEntryDTO(
+                        x.SymbolName,
+                        x.Location
+                            .Select(loc =>  
+                                new SourceLocationDTO(loc.FilePath,loc.Column,loc.Line)),
+                        x.Accessibility,
+                        x.Kind,
+                        x.Summary
+                    ))));
 
             return groupedByProject;
         }
