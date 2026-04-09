@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.SymbolDisplay;
 using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure._Refactored;
@@ -8,13 +7,16 @@ namespace RoslynMcp.Infrastructure._Refactored;
 public class MembersEnumerationService(
     ILogger<MembersEnumerationService> logger,
     ITypeResolverService typeResolverService,
-    ISolutionWorkspaceService solutionWorkspaceService) : IMembersEnumerationService
+    ISolutionWorkspaceService solutionWorkspaceService,
+    IMemberFilter memberFilter,
+    IMemberExtractor memberExtractor,
+    IMembersInheritanceCollector inheritanceCollector) : IMembersEnumerationService
 {
     public Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
         string fullTypeName,
         MemberEntryKind? kind,
         SymbolAccessibility? accessibility,
-        string? binding,
+        bool? isStatic,
         bool includeInherited,
         bool includeSummary,
         CancellationToken ct)
@@ -22,7 +24,7 @@ public class MembersEnumerationService(
         try
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
-            return EnumerateMembersInternalAsync(solution, fullTypeName, kind, accessibility, binding, includeInherited, includeSummary, ct);
+            return EnumerateMembersInternalAsync(solution, fullTypeName, kind, accessibility, isStatic, includeInherited, includeSummary, ct);
         }
         catch (Exception ex)
         {
@@ -34,9 +36,9 @@ public class MembersEnumerationService(
     private async Task<IEnumerable<MemberEntry>> EnumerateMembersInternalAsync(
         Solution solution,
         string fullTypeName,
-        MemberEntryKind? kindFilter,
-        SymbolAccessibility? accessibilityFilter,
-        string? bindingFilter,
+        MemberEntryKind? kind,
+        SymbolAccessibility? accessibility,
+        bool? isStatic,
         bool includeInherited,
         bool includeSummary,
         CancellationToken ct)
@@ -48,14 +50,12 @@ public class MembersEnumerationService(
         }
 
         var members = includeInherited
-            ? CollectMembersWithInheritance(typeSymbol)
+            ? inheritanceCollector.CollectWithInheritance(typeSymbol)
             : typeSymbol.GetMembers();
 
         var entries = members
             .Select(m => ToMemberEntry(m, typeSymbol, includeSummary))
-            .Where(e => FilterByKind(e, kindFilter))
-            .Where(e => FilterByAccessibility(e, accessibilityFilter))
-            .Where(e => FilterByBinding(e, bindingFilter))
+            .Where(e => memberFilter.Matches(e))
             .OrderBy(e => e.Kind)
             .ThenBy(e => e.DisplayName)
             .ThenBy(e => e.Signature);
@@ -63,117 +63,20 @@ public class MembersEnumerationService(
         return entries;
     }
 
-    private static ImmutableArray<ISymbol> CollectMembersWithInheritance(INamedTypeSymbol type)
+    private MemberEntry ToMemberEntry(ISymbol member, INamedTypeSymbol sourceType, bool includeSummary)
     {
-        var builder = ImmutableArray.CreateBuilder<ISymbol>();
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        static IEnumerable<INamedTypeSymbol> Traverse(INamedTypeSymbol current)
-        {
-            yield return current;
-            var baseType = current.BaseType;
-            while (baseType != null)
-            {
-                yield return baseType;
-                baseType = baseType.BaseType;
-            }
-            foreach (var iface in current.AllInterfaces.OrderBy(static i => i.ToDisplayString(), StringComparer.Ordinal))
-                yield return iface;
-        }
-
-        foreach (var declaringType in Traverse(type))
-        {
-            foreach (var member in declaringType.GetMembers())
-            {
-                if (!IsValidMemberKind(member))
-                    continue;
-                var key = GetKey(member);
-                if (seen.Add(key))
-                    builder.Add(member);
-            }
-        }
-
-        return builder.ToImmutable();
-    }
-
-    private static bool IsValidMemberKind(ISymbol member)
-    {
-        return member switch
-        {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } => true,
-            IMethodSymbol method when method.MethodKind == MethodKind.Ordinary 
-                || method.MethodKind == MethodKind.UserDefinedOperator
-                || method.MethodKind == MethodKind.Conversion 
-                || method.MethodKind == MethodKind.ReducedExtension
-                || method.MethodKind == MethodKind.DelegateInvoke => true,
-            IPropertySymbol => true,
-            IFieldSymbol field when !field.IsImplicitlyDeclared => true,
-            IEventSymbol => true,
-            _ => false
-        };
-    }
-
-    private static MemberEntry ToMemberEntry(ISymbol member, INamedTypeSymbol sourceType, bool includeSummary)
-    {
-        var location = GetDeclarationLocation(member);
         var isInherited = member.ContainingType != null && !SymbolEqualityComparer.Default.Equals(member.ContainingType, sourceType);
 
         return new MemberEntry
         {
-            DisplayName = GetDisplayName(member),
-            Signature = GetSignature(member),
-            Kind = GetMemberKind(member),
+            DisplayName = memberExtractor.GetDisplayName(member),
+            Signature = memberExtractor.GetSignature(member),
+            Kind = memberExtractor.GetKind(member),
             Accessibility = GetAccessibility(member),
-            IsStatic = member.IsStatic,
+            IsStatic = memberExtractor.GetIsStatic(member),
             IsInherited = isInherited,
-            Location = location,
+            Location = member.Locations.FirstOrDefault(l => l.IsInSource)?.AsSourceLocation(),
             Summary = includeSummary ? GetSummary(member) : null
-        };
-    }
-
-    private static string GetDisplayName(ISymbol member)
-    {
-        if (member.Kind == SymbolKind.Method && member is IMethodSymbol { MethodKind: MethodKind.Constructor } constructor)
-            return constructor.ContainingType.Name;
-        return member.Name;
-    }
-
-    private static string GetSignature(ISymbol member)
-    {
-        return member switch
-        {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } constructor
-                => $"{constructor.ContainingType.Name}({FormatParameters(constructor.Parameters)})",
-            IMethodSymbol method => FormatMethodSignature(method),
-            IPropertySymbol property => $"{property.Type.ToDisplayString()} {property.Name}",
-            IFieldSymbol field => $"{field.Type.ToDisplayString()} {field.Name}",
-            IEventSymbol @event => $"{@event.Type.ToDisplayString()} {@event.Name}",
-            _ => member.Name
-        };
-    }
-
-    private static string FormatMethodSignature(IMethodSymbol method)
-    {
-        var returnType = method.ReturnType.ToDisplayString();
-        var parameters = FormatParameters(method.Parameters);
-        return $"{returnType} {method.Name}({parameters})";
-    }
-
-    private static string FormatParameters(ImmutableArray<IParameterSymbol> parameters)
-    {
-        return string.Join(", ", parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
-    }
-
-    private static MemberEntryKind GetMemberKind(ISymbol member)
-    {
-        return member switch
-        {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } => MemberEntryKind.Constructor,
-            IMethodSymbol => MemberEntryKind.Method,
-            IPropertySymbol => MemberEntryKind.Property,
-            IFieldSymbol => MemberEntryKind.Field,
-            IEventSymbol => MemberEntryKind.Event,
-            _ => MemberEntryKind.Method
         };
     }
 
@@ -191,57 +94,8 @@ public class MembersEnumerationService(
         };
     }
 
-    private static SourceLocation? GetDeclarationLocation(ISymbol member)
-    {
-        var location = member.Locations.FirstOrDefault(l => l.IsInSource);
-        if (location == null)
-            return null;
-
-        return new SourceLocation
-        {
-            FilePath = location.SourceTree?.FilePath ?? "",
-            Line = location.GetLineSpan().StartLinePosition.Line + 1,
-            Column = location.GetLineSpan().StartLinePosition.Character + 1
-        };
-    }
-
     private static string? GetSummary(ISymbol member)
     {
         return null;
-    }
-
-    private static bool FilterByKind(MemberEntry entry, MemberEntryKind? kind)
-    {
-        return kind == null || entry.Kind == kind;
-    }
-
-    private static bool FilterByAccessibility(MemberEntry entry, SymbolAccessibility? accessibility)
-    {
-        return accessibility == null || entry.Accessibility == accessibility;
-    }
-
-    private static bool FilterByBinding(MemberEntry entry, string? binding)
-    {
-        if (string.IsNullOrEmpty(binding))
-            return true;
-
-        return binding.ToLowerInvariant() switch
-        {
-            "static" => entry.IsStatic,
-            "instance" => !entry.IsStatic,
-            _ => true
-        };
-    }
-
-    private static string GetKey(ISymbol member)
-    {
-        return member.Kind switch
-        {
-            SymbolKind.Method => $"M:{member.Name}",
-            SymbolKind.Property => $"P:{member.Name}",
-            SymbolKind.Field => $"F:{member.Name}",
-            SymbolKind.Event => $"E:{member.Name}",
-            _ => member.Name
-        };
     }
 }

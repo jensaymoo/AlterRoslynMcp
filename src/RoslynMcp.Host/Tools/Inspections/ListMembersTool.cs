@@ -13,7 +13,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
     [Description(
         """
         Use this tool when you need to inspect the members declared by a specific type. It returns methods, 
-        properties, fields, events, and constructors, and supports filtering by kind, accessibility, binding, 
+        properties, fields, events, and constructors, and supports filtering by kind, accessibility, isStatic, 
         and inheritance.
         """
     )]
@@ -28,7 +28,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
         SymbolAccessibility? accessibility = null,
 
         [Description("Filter by binding type: static or instance.")]
-        string? binding = null,
+        bool? isStatic = null,
 
         [Description("When true, includes members from base classes. Defaults to false.")]
         bool includeInherited = false,
@@ -42,7 +42,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
                 fullTypeName,
                 kind,
                 accessibility,
-                binding,
+                isStatic,
                 includeInherited,
                 includeSummary,
                 ct);
