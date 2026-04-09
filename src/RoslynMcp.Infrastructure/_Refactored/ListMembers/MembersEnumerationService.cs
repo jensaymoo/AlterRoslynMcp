@@ -8,7 +8,6 @@ public class MembersEnumerationService(
     ILogger<MembersEnumerationService> logger,
     ITypeResolverService typeResolverService,
     ISolutionWorkspaceService solutionWorkspaceService,
-    IMemberFilter memberFilter,
     IMemberExtractor memberExtractor,
     IMembersInheritanceCollector inheritanceCollector) : IMembersEnumerationService
 {
@@ -16,7 +15,6 @@ public class MembersEnumerationService(
         string fullTypeName,
         MemberEntryKind? kind,
         SymbolAccessibility? accessibility,
-        bool? isStatic,
         bool includeInherited,
         bool includeSummary,
         CancellationToken ct)
@@ -24,7 +22,7 @@ public class MembersEnumerationService(
         try
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
-            return EnumerateMembersInternalAsync(solution, fullTypeName, kind, accessibility, isStatic, includeInherited, includeSummary, ct);
+            return EnumerateMembersInternalAsync(solution, fullTypeName, kind, accessibility, includeInherited, includeSummary, ct);
         }
         catch (Exception ex)
         {
@@ -38,7 +36,6 @@ public class MembersEnumerationService(
         string fullTypeName,
         MemberEntryKind? kind,
         SymbolAccessibility? accessibility,
-        bool? isStatic,
         bool includeInherited,
         bool includeSummary,
         CancellationToken ct)
@@ -55,7 +52,8 @@ public class MembersEnumerationService(
 
         var entries = members
             .Select(m => ToMemberEntry(m, typeSymbol, includeSummary))
-            .Where(e => memberFilter.Matches(e))
+            .Where(e => FilterByKind(e, kind))
+            .Where(e => FilterByAccessibility(e, accessibility))
             .OrderBy(e => e.Kind)
             .ThenBy(e => e.DisplayName)
             .ThenBy(e => e.Signature);
@@ -92,6 +90,16 @@ public class MembersEnumerationService(
             Microsoft.CodeAnalysis.Accessibility.ProtectedOrInternal => SymbolAccessibility.ProtectedInternal,
             _ => SymbolAccessibility.NotApplicable
         };
+    }
+
+    private static bool FilterByKind(MemberEntry entry, MemberEntryKind? kind)
+    {
+        return kind == null || entry.Kind == kind;
+    }
+
+    private static bool FilterByAccessibility(MemberEntry entry, SymbolAccessibility? accessibility)
+    {
+        return accessibility == null || entry.Accessibility == accessibility;
     }
 
     private static string? GetSummary(ISymbol member)

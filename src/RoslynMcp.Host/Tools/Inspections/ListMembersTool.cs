@@ -13,8 +13,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
     [Description(
         """
         Use this tool when you need to inspect the members declared by a specific type. It returns methods, 
-        properties, fields, events, and constructors, and supports filtering by kind, accessibility, isStatic, 
-        and inheritance.
+        properties, fields, events, and constructors, and supports filtering by kind, accessibility, and inheritance.
         """
     )]
     public async Task<IEnumerable<MemberEntryDTO>> ExecuteAsync(CancellationToken ct,
@@ -27,8 +26,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
         [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
         SymbolAccessibility? accessibility = null,
 
-        [Description("Filter by binding type: static or instance.")]
-        bool? isStatic = null,
+       
 
         [Description("When true, includes members from base classes. Defaults to false.")]
         bool includeInherited = false,
@@ -42,7 +40,6 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
                 fullTypeName,
                 kind,
                 accessibility,
-                isStatic,
                 includeInherited,
                 includeSummary,
                 ct);

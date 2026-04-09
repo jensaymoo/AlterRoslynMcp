@@ -6,7 +6,6 @@ public interface IMembersEnumerationService : IScopedService
         string fullTypeName,
         MemberEntryKind? kind,
         SymbolAccessibility? accessibility,
-        bool? isStatic,
         bool includeInherited,
         bool includeSummary,
         CancellationToken ct);
