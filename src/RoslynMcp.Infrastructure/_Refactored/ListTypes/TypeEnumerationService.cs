@@ -6,10 +6,9 @@ namespace RoslynMcp.Infrastructure._Refactored;
 
 public class TypeEnumerationService(
     ILogger<TypeEnumerationService> logger,
-    ITypeResolverService typeResolverService,
     ISolutionWorkspaceService solutionWorkspaceService): ITypeEnumerationService
 {
-    public async Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(bool includeSummary, CancellationToken ct = default)
+  public async Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(bool includeSummary, CancellationToken ct = default)
     {
         try
         {
@@ -20,33 +19,22 @@ public class TypeEnumerationService(
             {
                 if (await project.GetCompilationAsync(ct) is { } compilation)
                 {
-                    var projectTrees = await Task.WhenAll(
-                        project.Documents
-                            .Where(d => d.SupportsSyntaxTree)
-                            .Select(d => d.GetSyntaxTreeAsync(ct))
-                    );
+                    var projectTrees = await GetProjectSyntaxTreesAsync(project, ct);
                     
-var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
+                    var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
                           .Where(type => type.DeclaringSyntaxReferences
                               .Select(r => r.SyntaxTree).Any(projectTrees.Contains));
 
-var typesWithBaseTypes = new List<TypeEntry>();
-foreach (var type in types)
-{
-    var directBaseTypes = await GetDirectBaseTypesAsync(type, compilation, project, ct);
-    
-    typesWithBaseTypes.Add(new TypeEntry
-    {
-        Accessibility = GetTypeEntryAccessibility(type),
-        Kind = GetTypeEntryKind(type),
-        SymbolName = typeResolverService.GetDisplayName(type),
-        Namespace = typeResolverService.GetDisplayNamespace(type),
-        Location = type.Locations.AsSourceLocations(),
-        Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
-        ProjectName = project.Name,
-        ProjectPath = project.FilePath,
-        BaseTypes = directBaseTypes
-    });
+                    var typesWithBaseTypes = new List<TypeEntry>();
+                    foreach (var type in types)
+                    {
+                        var directBaseTypes = await GetDirectBaseTypesAsync(type, compilation, project, ct);
+                        
+                        typesWithBaseTypes.Add(CreateTypeEntry(
+                            type, 
+                            project, 
+                            includeSummary ? type.GetDocumentationCommentXml() : null
+                        ));
 }
                     
                     allTypes.AddRange(typesWithBaseTypes);
@@ -60,7 +48,6 @@ foreach (var type in types)
             logger.LogError(ex, "Unexpected error during type enumeration");
             throw;
         }
-        
     }
     
     private static TypeEntryKind GetTypeEntryKind(INamedTypeSymbol symbol)
@@ -96,6 +83,31 @@ foreach (var type in types)
         => entries
             .OrderBy(item => item.SymbolName, StringComparer.Ordinal)
             .ToArray();
+
+    private async Task<IEnumerable<SyntaxTree>> GetProjectSyntaxTreesAsync(Project project, CancellationToken ct)
+        => await Task.WhenAll(
+            project.Documents
+                .Where(d => d.SupportsSyntaxTree)
+                .Select(d => d.GetSyntaxTreeAsync(ct))
+        ) ?? Array.Empty<SyntaxTree>();
+
+    private TypeEntry CreateTypeEntry(INamedTypeSymbol symbol, Project project, string? summary)
+    {
+        return new TypeEntry
+        {
+            Accessibility = GetTypeEntryAccessibility(symbol),
+            Kind = GetTypeEntryKind(symbol),
+            SymbolName = symbol.Name,
+            Namespace = symbol.ContainingNamespace.IsGlobalNamespace 
+                ? null 
+                : symbol.ContainingNamespace.ToDisplayString(),
+            Location = symbol.Locations.AsSourceLocations(),
+            Summary = summary,
+            ProjectName = project.Name,
+            ProjectPath = project.FilePath,
+            BaseTypes = null
+        };
+    }
 
     private async Task<IEnumerable<TypeEntry>?> GetDirectBaseTypesAsync(INamedTypeSymbol type, Compilation compilation, Project project, CancellationToken ct)
     {
@@ -142,27 +154,15 @@ foreach (var type in types)
         }
 
         var syntaxTree = symbol.DeclaringSyntaxReferences.First().SyntaxTree;
-       var isFromThisProject = (await Task.WhenAll(
-            project.Documents.Select(d => d.GetSyntaxTreeAsync(ct))
-        )).Any(dt => dt == syntaxTree);
+        var projectTrees = await GetProjectSyntaxTreesAsync(project, ct);
+        var isFromThisProject = projectTrees.Contains(syntaxTree);
         
         if (!isFromThisProject)
         {
             return null;
         }
 
-        return new TypeEntry
-        {
-            Accessibility = GetTypeEntryAccessibility(symbol),
-            Kind = GetTypeEntryKind(symbol),
-            SymbolName = symbol.Name,
-            Namespace = symbol.ContainingNamespace.IsGlobalNamespace ? null : symbol.ContainingNamespace.ToDisplayString(),
-            Location = symbol.Locations.AsSourceLocations(),
-            Summary = null,
-            ProjectName = project.Name,
-            ProjectPath = project.FilePath,
-            BaseTypes = null
-        };
+        return CreateTypeEntry(symbol, project, null);
     }
 
   }
