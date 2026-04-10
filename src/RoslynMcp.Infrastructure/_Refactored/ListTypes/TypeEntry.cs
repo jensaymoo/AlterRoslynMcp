@@ -14,4 +14,6 @@ public sealed class TypeEntry
     
     public required string ProjectName { get; init; }
     public required string? ProjectPath { get; init; }
+
+    public IEnumerable<TypeEntry>? BaseTypes { get; init; }
 }

@@ -8,5 +8,6 @@ public record TypeEntryDTO
     IEnumerable<SourceLocationDTO> Location,
     SymbolAccessibility Accessibility,
     TypeEntryKind Kind,
-    string? Summary
+    string? Summary,
+    IEnumerable<TypeEntryDTO>? BaseTypes = null
 );

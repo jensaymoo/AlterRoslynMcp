@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
@@ -25,22 +26,30 @@ public class TypeEnumerationService(
                             .Select(d => d.GetSyntaxTreeAsync(ct))
                     );
                     
-                    var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
-                        .Where(type => type.DeclaringSyntaxReferences
-                            .Select(r => r.SyntaxTree).Any(projectTrees.Contains))
-                        .Select(type => new TypeEntry
-                        {
-                            Accessibility = GetTypeEntryAccessibility(type),
-                            Kind = GetTypeEntryKind(type),
-                            SymbolName = typeResolverService.GetDisplayName(type),
-                            Namespace = typeResolverService.GetDisplayNamespace(type),
-                            Location = type.Locations.AsSourceLocations(),
-                            Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
-                            ProjectName = project.Name,
-                            ProjectPath = project.FilePath,
-                        });
+var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
+                          .Where(type => type.DeclaringSyntaxReferences
+                              .Select(r => r.SyntaxTree).Any(projectTrees.Contains));
+
+var typesWithBaseTypes = new List<TypeEntry>();
+foreach (var type in types)
+{
+    var directBaseTypes = await GetDirectBaseTypesAsync(type, compilation, project, ct);
+    
+    typesWithBaseTypes.Add(new TypeEntry
+    {
+        Accessibility = GetTypeEntryAccessibility(type),
+        Kind = GetTypeEntryKind(type),
+        SymbolName = typeResolverService.GetDisplayName(type),
+        Namespace = typeResolverService.GetDisplayNamespace(type),
+        Location = type.Locations.AsSourceLocations(),
+        Summary = includeSummary ? type.GetDocumentationCommentXml() : null,
+        ProjectName = project.Name,
+        ProjectPath = project.FilePath,
+        BaseTypes = directBaseTypes
+    });
+}
                     
-                    allTypes.AddRange(types);
+                    allTypes.AddRange(typesWithBaseTypes);
                 }
             }
             
@@ -88,4 +97,72 @@ public class TypeEnumerationService(
             .OrderBy(item => item.SymbolName, StringComparer.Ordinal)
             .ToArray();
 
-}
+    private async Task<IEnumerable<TypeEntry>?> GetDirectBaseTypesAsync(INamedTypeSymbol type, Compilation compilation, Project project, CancellationToken ct)
+    {
+        if (type.TypeKind == TypeKind.Enum)
+        {
+            return null;
+        }
+
+        var directBaseTypes = new List<TypeEntry>();
+        var typesToLookup = new List<INamedTypeSymbol>();
+
+        if (type.BaseType != null && !type.BaseType.IsImplicitlyDeclared)
+        {
+            typesToLookup.Add(type.BaseType);
+        }
+
+        foreach (var iface in type.Interfaces)
+        {
+            if (!iface.IsImplicitlyDeclared)
+            {
+                typesToLookup.Add(iface);
+            }
+        }
+
+        if (typesToLookup.Count == 0)
+        {
+            return null;
+        }
+
+        var entries = await Task.WhenAll(
+            typesToLookup.Select(t => CreateTypeEntryOrNullAsync(t, compilation, project, ct))
+        );
+
+        directBaseTypes.AddRange(entries.OfType<TypeEntry>());
+
+        return directBaseTypes.Count > 0 ? directBaseTypes : null;
+    }
+
+    private async Task<TypeEntry?> CreateTypeEntryOrNullAsync(INamedTypeSymbol symbol, Compilation compilation, Project project, CancellationToken ct)
+    {
+        if (!symbol.DeclaringSyntaxReferences.Any())
+        {
+            return null;
+        }
+
+        var syntaxTree = symbol.DeclaringSyntaxReferences.First().SyntaxTree;
+       var isFromThisProject = (await Task.WhenAll(
+            project.Documents.Select(d => d.GetSyntaxTreeAsync(ct))
+        )).Any(dt => dt == syntaxTree);
+        
+        if (!isFromThisProject)
+        {
+            return null;
+        }
+
+        return new TypeEntry
+        {
+            Accessibility = GetTypeEntryAccessibility(symbol),
+            Kind = GetTypeEntryKind(symbol),
+            SymbolName = symbol.Name,
+            Namespace = symbol.ContainingNamespace.IsGlobalNamespace ? null : symbol.ContainingNamespace.ToDisplayString(),
+            Location = symbol.Locations.AsSourceLocations(),
+            Summary = null,
+            ProjectName = project.Name,
+            ProjectPath = project.FilePath,
+            BaseTypes = null
+        };
+    }
+
+  }

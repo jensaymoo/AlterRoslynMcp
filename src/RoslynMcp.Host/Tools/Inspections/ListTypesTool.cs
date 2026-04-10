@@ -87,7 +87,15 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                                         .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
                                     firstType.Accessibility,
                                     firstType.Kind,
-                                    firstType.Summary
+                                    firstType.Summary,
+                                    firstType.BaseTypes?.Select(bt => new TypeEntryDTO(
+                                        SymbolName: bt.SymbolName,
+                                        Location: bt.Location.Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line)),
+                                        Accessibility: bt.Accessibility,
+                                        Kind: bt.Kind,
+                                        Summary: null,
+                                        BaseTypes: null
+                                    ))
                                 );
                             })
                     );
