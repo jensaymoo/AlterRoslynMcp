@@ -1,45 +1,24 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
-using System.Linq;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
 public class TypeEnumerationService(
     ILogger<TypeEnumerationService> logger,
-    ISolutionWorkspaceService solutionWorkspaceService): ITypeEnumerationService
+    ISolutionWorkspaceService solutionWorkspaceService) : ITypeEnumerationService
 {
-  public async Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(CancellationToken ct = default)
     {
         try
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
-            var allTypes = new List<TypeEntry>();
-            
-            foreach (var project in solution.Projects)
-            {
-                if (await project.GetCompilationAsync(ct) is { } compilation)
-                {
-                    var projectTrees = await GetProjectSyntaxTreesAsync(project, ct);
-                    
-                    var types = compilation.GlobalNamespace.EnumerateTypes(includeGenerated: false)
-                          .Where(type => type.DeclaringSyntaxReferences
-                              .Select(r => r.SyntaxTree).Any(projectTrees.Contains));
 
-                    var typesWithBaseTypes = new List<TypeEntry>();
-                    foreach (var type in types)
-                    {
-                        var directBaseTypes = await GetDirectBaseTypesAsync(type, compilation, project, ct);
-                        
-                        var typeEntry = new TypeEntry(type, project) { BaseTypes = directBaseTypes };
-                        
-                        typesWithBaseTypes.Add(typeEntry);
-                    }
-                    
-                    allTypes.AddRange(typesWithBaseTypes);
-                }
-            }
-            
-            return OrderTypes(allTypes);
+            var allTypes = await Task.WhenAll(solution.Projects.Select(p => EnumerateProjectTypesAsync(p, ct)));
+
+            return allTypes
+                .SelectMany(x => x)
+                .OrderBy(x => x.SymbolName, StringComparer.Ordinal)
+                .ToArray();
         }
         catch (Exception ex)
         {
@@ -48,72 +27,27 @@ public class TypeEnumerationService(
         }
     }
 
-    private IEnumerable<TypeEntry> OrderTypes(IEnumerable<TypeEntry> entries)
-        => entries
-            .OrderBy(item => item.SymbolName, StringComparer.Ordinal)
-            .ToArray();
+    private async Task<IEnumerable<TypeEntry>> EnumerateProjectTypesAsync(Project project, CancellationToken ct)
+    {
+        if (await project.GetCompilationAsync(ct) is not { } compilation)
+            return [];
 
-    private async Task<SyntaxTree?[]> GetProjectSyntaxTreesAsync(Project project, CancellationToken ct)
+        var projectTreeSet = (await GetProjectSyntaxTreesAsync(project, ct))
+            .OfType<SyntaxTree>()
+            .ToHashSet();
+
+        return compilation.GlobalNamespace
+            .EnumerateTypes(includeGenerated: false)
+            .Where(t => t.DeclaringSyntaxReferences
+                .Select(r => r.SyntaxTree)
+                .Any(projectTreeSet.Contains))
+            .Select(t => new TypeEntry(t, project));
+    }
+
+    private static async Task<SyntaxTree?[]> GetProjectSyntaxTreesAsync(Project project, CancellationToken ct)
         => await Task.WhenAll(
             project.Documents
                 .Where(d => d.SupportsSyntaxTree)
                 .Select(d => d.GetSyntaxTreeAsync(ct))
         );
-
-    private async Task<IEnumerable<TypeEntry>?> GetDirectBaseTypesAsync(INamedTypeSymbol type, Compilation compilation, Project project, CancellationToken ct)
-    {
-        if (type.TypeKind == TypeKind.Enum)
-        {
-            return null;
-        }
-
-        var directBaseTypes = new List<TypeEntry>();
-        var typesToLookup = new List<INamedTypeSymbol>();
-
-        if (type.BaseType != null && !type.BaseType.IsImplicitlyDeclared)
-        {
-            typesToLookup.Add(type.BaseType);
-        }
-
-        foreach (var iface in type.Interfaces)
-        {
-            if (!iface.IsImplicitlyDeclared)
-            {
-                typesToLookup.Add(iface);
-            }
-        }
-
-        if (typesToLookup.Count == 0)
-        {
-            return null;
-        }
-
-        var entries = await Task.WhenAll(
-            typesToLookup.Select(t => CreateTypeEntryOrNullAsync(t, compilation, project, ct))
-        );
-
-        directBaseTypes.AddRange(entries.OfType<TypeEntry>());
-
-        return directBaseTypes.Count > 0 ? directBaseTypes : null;
-    }
-
-    private async Task<TypeEntry?> CreateTypeEntryOrNullAsync(INamedTypeSymbol symbol, Compilation compilation, Project project, CancellationToken ct)
-    {
-        if (!symbol.DeclaringSyntaxReferences.Any())
-        {
-            return null;
-        }
-
-        var syntaxTree = symbol.DeclaringSyntaxReferences.First().SyntaxTree;
-        var projectTrees = await GetProjectSyntaxTreesAsync(project, ct);
-        var isFromThisProject = projectTrees.Contains(syntaxTree);
-        
-        if (!isFromThisProject)
-        {
-            return null;
-        }
-
-        return new TypeEntry(symbol, project);
-    }
-
-  }
+}

@@ -28,5 +28,37 @@ public sealed class TypeEntry
 
         ProjectName = project.Name;
         ProjectPath = project.FilePath;
+
+        BaseTypes = GetDirectBaseTypes(symbol, project);
+    }
+
+    private static IEnumerable<TypeEntry>? GetDirectBaseTypes(INamedTypeSymbol type, Project project)
+    {
+        if (type.TypeKind == TypeKind.Enum || !project.TryGetCompilation(out var compilation))
+            return null;
+
+        var entries = GetDirectBaseSymbols(type)
+            .Select(t => CreateTypeEntryOrNull(t, project, compilation))
+            .OfType<TypeEntry>()
+            .ToList();
+
+        return entries.Count > 0 ? entries : null;
+    }
+
+    private static IEnumerable<INamedTypeSymbol> GetDirectBaseSymbols(INamedTypeSymbol type)
+    {
+        if (type.BaseType is { IsImplicitlyDeclared: false } baseType)
+            yield return baseType;
+
+        foreach (var iface in type.Interfaces.Where(i => !i.IsImplicitlyDeclared))
+            yield return iface;
+    }
+
+    private static TypeEntry? CreateTypeEntryOrNull(INamedTypeSymbol symbol, Project project, Compilation compilation)
+    {
+        var syntaxRef = symbol.DeclaringSyntaxReferences.FirstOrDefault();
+        var isFromProject = syntaxRef is not null && compilation.SyntaxTrees.Contains(syntaxRef.SyntaxTree);
+
+        return isFromProject ? new TypeEntry(symbol, project) : null;
     }
 }
