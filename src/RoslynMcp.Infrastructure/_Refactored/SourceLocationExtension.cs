@@ -4,7 +4,7 @@ namespace RoslynMcp.Infrastructure._Refactored;
 
 internal static class SourceLocationExtension
 {
-    public static SourceLocation? AsSourceLocation(this Location location)
+    internal static SourceLocation? AsSourceLocation(this Location location)
     {
         if (!location.IsInSource)
             return null;
@@ -20,10 +20,8 @@ internal static class SourceLocationExtension
         };
     }
 
-    public static IEnumerable<SourceLocation> AsSourceLocations(this IEnumerable<Location> locations)
-    {
-        return locations
+    internal static IEnumerable<SourceLocation> AsSourceLocations(this IEnumerable<Location> locations)
+        => locations
             .Select(l => l.AsSourceLocation())
             .OfType<SourceLocation>();
-    }
 }

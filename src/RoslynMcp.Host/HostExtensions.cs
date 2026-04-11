@@ -44,7 +44,7 @@ internal static class HostExtensions
             builder.WithStdioServerTransport();
             builder.WithTools<LoadSolutionTool>(serializerOptions);
             builder.WithTools<ListTypesTool>(serializerOptions);
-            
+            builder.WithTools<ListMembersTool>(serializerOptions);
             //builder.WithToolsFromAssembly(serializerOptions: serializerOptions);
         }
     }

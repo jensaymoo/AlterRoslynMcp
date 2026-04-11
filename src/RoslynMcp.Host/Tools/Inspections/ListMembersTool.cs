@@ -26,8 +26,6 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
         [Description("Filter by accessibility: public, internal, protected, private, protected_internal, or private_protected.")]
         SymbolAccessibility? accessibility = null,
 
-       
-
         [Description("When true, includes members from base classes. Defaults to false.")]
         bool includeInherited = false,
 
@@ -36,23 +34,20 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
     {
         try
         {
-            var members = await membersEnumerationService.EnumerateMembersAsync(
-                fullTypeName,
-                kind,
-                accessibility,
-                includeInherited,
-                includeSummary,
-                ct);
+            var members = await membersEnumerationService
+                .EnumerateMembersAsync(fullTypeName, kind, accessibility, includeInherited, ct);
 
             return members.Select(m => new MemberEntryDTO(
-                m.DisplayName,
-                m.Kind.ToString().ToLowerInvariant(),
-                m.Signature,
-                m.Location != null ? new SourceLocationDTO(m.Location.FilePath, m.Location.Column, m.Location.Line) : null,
-                m.Accessibility.ToString().ToLowerInvariant(),
-                m.IsStatic,
-                m.IsInherited,
-                m.Summary
+                SymbolName: m.SymbolName,
+                Kind: m.Kind,
+                Signature: m.Signature,
+                Location: m.Location?
+                    .Select(x => new SourceLocationDTO(x.FilePath, x.Column, x.Line))
+                    .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
+                Accessibility: m.Accessibility,
+                Summary: m.Summary,
+                IsStatic: m.IsStatic,
+                IsInherited: m.IsInherited
             ));
         }
         catch (SolutionNotLoadedException)

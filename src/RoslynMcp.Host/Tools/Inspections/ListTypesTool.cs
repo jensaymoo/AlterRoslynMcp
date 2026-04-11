@@ -55,7 +55,7 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
     {
         try
         {
-            var allTypes = await typeEnumerationService.EnumerateTypesBySolutionAsync(includeSummary, ct);
+            var allTypes = await typeEnumerationService.EnumerateTypesBySolutionAsync(ct);
             
             var filteredByProject = string.IsNullOrWhiteSpace(projectName)
                 ? allTypes
@@ -81,19 +81,21 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                                 var firstType = typeGroup.First();
 
                                 return new TypeEntryDTO(
-                                    typeGroup.Key,
-                                    typeGroup.SelectMany(x => x.Location)
+                                    SymbolName: typeGroup.Key,
+                                    Location: typeGroup.SelectMany(x => x.Location)
                                         .Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line))
                                         .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
-                                    firstType.Accessibility,
-                                    firstType.Kind,
-                                    firstType.Summary,
-                                    firstType.BaseTypes?.Select(bt => new TypeEntryDTO(
+                                    Accessibility: firstType.Accessibility,
+                                    Kind: firstType.Kind,
+                                    Summary: includeSummary ? firstType.Summary : null,
+                                    BaseTypes: firstType.BaseTypes?.Select(bt => new TypeEntryDTO(
                                         SymbolName: bt.SymbolName,
-                                        Location: bt.Location.Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line)),
+                                        Location: bt.Location
+                                            .Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line))
+                                            .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
                                         Accessibility: bt.Accessibility,
                                         Kind: bt.Kind,
-                                        Summary: null,
+                                        Summary: bt.Summary,
                                         BaseTypes: null
                                     ))
                                 );

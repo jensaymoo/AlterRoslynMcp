@@ -8,23 +8,13 @@ public class MembersInheritanceCollector(INamedTypeSymbol type)
     public ImmutableArray<ISymbol> CollectWithInheritance()
     {
         var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
-        var builder = ImmutableArray.CreateBuilder<ISymbol>();
 
-        var allTypes = Traverse(type).ToArray();
-
-        foreach (var declaringType in allTypes)
-        {
-            foreach (var member in declaringType.GetMembers())
-            {
-                if (!IsValidMemberKind(member))
-                    continue;
-
-                if (seen.Add(member))
-                    builder.Add(member);
-            }
-        }
-
-        return builder.ToImmutable();
+        return [
+            ..Traverse(type)
+                .SelectMany(t => t.GetMembers())
+                .Where(IsValidMemberKind)
+                .Where(seen.Add)
+        ];
     }
 
     private static IEnumerable<INamedTypeSymbol> Traverse(INamedTypeSymbol currentType)
@@ -42,20 +32,17 @@ public class MembersInheritanceCollector(INamedTypeSymbol type)
             yield return iface;
     }
 
-    private static bool IsValidMemberKind(ISymbol member)
+    private static bool IsValidMemberKind(ISymbol member) => member switch
     {
-        return member switch
-        {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } => true,
-            IMethodSymbol method when method.MethodKind is MethodKind.Ordinary
-                or MethodKind.UserDefinedOperator
-                or MethodKind.Conversion
-                or MethodKind.ReducedExtension
-                or MethodKind.DelegateInvoke => true,
-            IPropertySymbol => true,
-            IFieldSymbol field when !field.IsImplicitlyDeclared => true,
-            IEventSymbol => true,
-            _ => false
-        };
-    }
+        IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } => true,
+        IMethodSymbol { MethodKind: MethodKind.Ordinary
+            or MethodKind.UserDefinedOperator
+            or MethodKind.Conversion
+            or MethodKind.ReducedExtension
+            or MethodKind.DelegateInvoke } => true,
+        IPropertySymbol => true,
+        IFieldSymbol { IsImplicitlyDeclared: false } => true,
+        IEventSymbol => true,
+        _ => false
+    };
 }

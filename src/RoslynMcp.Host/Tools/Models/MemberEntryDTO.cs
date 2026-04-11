@@ -4,11 +4,11 @@ namespace RoslynMcp.Host.Tools.Models;
 
 public record MemberEntryDTO
 (
-    string DisplayName,
-    string Kind,
+    string SymbolName,
+    MemberEntryKind Kind,
     string Signature,
-    SourceLocationDTO? Location,
-    string Accessibility,
+    IEnumerable<SourceLocationDTO>? Location,
+    SymbolAccessibility Accessibility,
     bool IsStatic,
     bool IsInherited,
     string? Summary

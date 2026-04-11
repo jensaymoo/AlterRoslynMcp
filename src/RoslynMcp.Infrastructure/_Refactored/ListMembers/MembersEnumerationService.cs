@@ -1,26 +1,29 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class MembersEnumerationService(
-    ILogger<MembersEnumerationService> logger,
-    ITypeResolverService typeResolverService,
+public class MembersEnumerationService(ILogger<MembersEnumerationService> logger, ITypeResolverService typeResolverService,
     ISolutionWorkspaceService solutionWorkspaceService) : IMembersEnumerationService
 {
-    public Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
-        string fullTypeName,
-        MemberEntryKind? kind,
-        SymbolAccessibility? accessibility,
-        bool includeInherited,
-        bool includeSummary,
-        CancellationToken ct)
+    public async Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
+        string fullTypeName, MemberEntryKind? kind, SymbolAccessibility? accessibility, bool includeInherited, CancellationToken ct)
     {
         try
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
-            return EnumerateMembersInternalAsync(solution, fullTypeName, kind, accessibility, includeInherited, includeSummary, ct);
+            
+            var typeSymbol = await typeResolverService.GetNamedTypeAsync(fullTypeName, solution);
+            if (typeSymbol == null)
+                return [];
+
+            return GetMembers(typeSymbol, includeInherited)
+                .Select(m => new MemberEntry(m, typeSymbol))
+                .Where(e => kind == null || e.Kind == kind)
+                .Where(e => accessibility == null || e.Accessibility == accessibility)
+                .OrderBy(e => e.Kind)
+                .ThenBy(e => e.SymbolName)
+                .ThenBy(e => e.Signature);
         }
         catch (Exception ex)
         {
@@ -29,80 +32,8 @@ public class MembersEnumerationService(
         }
     }
 
-    private async Task<IEnumerable<MemberEntry>> EnumerateMembersInternalAsync(
-        Solution solution,
-        string fullTypeName,
-        MemberEntryKind? kind,
-        SymbolAccessibility? accessibility,
-        bool includeInherited,
-        bool includeSummary,
-        CancellationToken ct)
-    {
-        var typeSymbol = await typeResolverService.GetNamedTypeAsync(fullTypeName, solution);
-        if (typeSymbol == null)
-        {
-            return [];
-        }
-
-        var members = includeInherited
+    private static IEnumerable<ISymbol> GetMembers(INamedTypeSymbol typeSymbol, bool includeInherited) =>
+        includeInherited
             ? new MembersInheritanceCollector(typeSymbol).CollectWithInheritance()
             : typeSymbol.GetMembers();
-
-        var entries = members
-            .Select(m => ToMemberEntry(m, typeSymbol, includeSummary))
-            .Where(e => FilterByKind(e, kind))
-            .Where(e => FilterByAccessibility(e, accessibility))
-            .OrderBy(e => e.Kind)
-            .ThenBy(e => e.DisplayName)
-            .ThenBy(e => e.Signature);
-
-        return entries;
-    }
-
-    private MemberEntry ToMemberEntry(ISymbol member, INamedTypeSymbol sourceType, bool includeSummary)
-    {
-        var isInherited = member.ContainingType != null && !SymbolEqualityComparer.Default.Equals(member.ContainingType, sourceType);
-
-        var memberExtractor = new MemberExtractor(member);
-        return new MemberEntry
-        {
-            DisplayName = memberExtractor.GetDisplayName(),
-            Signature = memberExtractor.GetSignature(),
-            Kind = memberExtractor.GetKind(),
-            Accessibility = GetAccessibility(member),
-            IsStatic = memberExtractor.GetIsStatic(),
-            IsInherited = isInherited,
-            Location = member.Locations.FirstOrDefault(l => l.IsInSource)?.AsSourceLocation(),
-            Summary = includeSummary ? GetSummary(member) : null
-        };
-    }
-
-    private static SymbolAccessibility GetAccessibility(ISymbol member)
-    {
-        return member.DeclaredAccessibility switch
-        {
-            Microsoft.CodeAnalysis.Accessibility.Internal => SymbolAccessibility.Internal,
-            Microsoft.CodeAnalysis.Accessibility.Private => SymbolAccessibility.Private,
-            Microsoft.CodeAnalysis.Accessibility.Protected => SymbolAccessibility.Protected,
-            Microsoft.CodeAnalysis.Accessibility.Public => SymbolAccessibility.Public,
-            Microsoft.CodeAnalysis.Accessibility.ProtectedAndInternal => SymbolAccessibility.PrivateProtected,
-            Microsoft.CodeAnalysis.Accessibility.ProtectedOrInternal => SymbolAccessibility.ProtectedInternal,
-            _ => SymbolAccessibility.NotApplicable
-        };
-    }
-
-    private static bool FilterByKind(MemberEntry entry, MemberEntryKind? kind)
-    {
-        return kind == null || entry.Kind == kind;
-    }
-
-    private static bool FilterByAccessibility(MemberEntry entry, SymbolAccessibility? accessibility)
-    {
-        return accessibility == null || entry.Accessibility == accessibility;
-    }
-
-    private static string? GetSummary(ISymbol member)
-    {
-        return null;
-    }
 }

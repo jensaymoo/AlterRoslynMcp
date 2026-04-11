@@ -1,20 +1,11 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.SymbolDisplay;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class MemberExtractor(ISymbol member)
+public static class SignatureExtensions
 {
-    public string GetDisplayName()
-    {
-        if (member.Kind == SymbolKind.Method && member is IMethodSymbol { MethodKind: MethodKind.Constructor })
-            return ((IMethodSymbol)member).ContainingType.Name;
-
-        return member.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-    }
-
-    public string GetSignature()
+    internal static string GetSignature(this ISymbol member)
     {
         return member switch
         {
@@ -26,24 +17,6 @@ public class MemberExtractor(ISymbol member)
             IEventSymbol @event => $"{@event.Type.ToDisplayString()} {@event.Name}",
             _ => member.Name
         };
-    }
-
-    public MemberEntryKind GetKind()
-    {
-        return member switch
-        {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } => MemberEntryKind.Constructor,
-            IMethodSymbol => MemberEntryKind.Method,
-            IPropertySymbol => MemberEntryKind.Property,
-            IFieldSymbol => MemberEntryKind.Field,
-            IEventSymbol => MemberEntryKind.Event,
-            _ => MemberEntryKind.Method
-        };
-    }
-
-    public bool GetIsStatic()
-    {
-        return member.IsStatic;
     }
 
     private static string FormatMethodSignature(IMethodSymbol method)
