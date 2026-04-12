@@ -18,7 +18,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
     )]
     public async Task<IEnumerable<MemberEntryDTO>> ExecuteAsync(CancellationToken ct,
         [Description("Full name of the type (e.g., RoslynMcp.Infrastructure.Service).")]
-        string fullTypeName,
+        string symbolName,
 
         [Description("Filter by member kind: method, property, field, event, or constructor.")]
         MemberEntryKind? kind = null,
@@ -35,7 +35,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
         try
         {
             var members = await membersEnumerationService
-                .EnumerateMembersAsync(fullTypeName, kind, accessibility, includeInherited, ct);
+                .EnumerateMembersAsync(symbolName, kind, accessibility, includeInherited, ct);
 
             return members.Select(m => new MemberEntryDTO(
                 SymbolName: m.SymbolName,

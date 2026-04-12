@@ -44,13 +44,11 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
     {
         try
         {
-            var allTypes = await typeEnumerationService.EnumerateTypesBySolutionAsync(ct);
-            
-            var filteredByProject = string.IsNullOrWhiteSpace(projectName)
-                ? allTypes
-                : allTypes.Where(x => x.ProjectName.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase));
+            var types = string.IsNullOrWhiteSpace(projectName)
+                ? await typeEnumerationService.EnumerateTypesBySolutionAsync(ct)
+                : await typeEnumerationService.EnumerateTypesByProjectAsync(projectName, ct);
 
-            var filtered = filteredByProject
+            var filtered = types
                 .Where(x => string.IsNullOrEmpty(namespacePrefix) || 
                             x.Namespace?.StartsWith(namespacePrefix) == true)
                 .Where(x => kind == null || x.Kind.Equals(kind))
