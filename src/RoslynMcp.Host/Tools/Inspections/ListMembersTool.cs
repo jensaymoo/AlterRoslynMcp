@@ -45,7 +45,7 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
                     .Select(x => new SourceLocationDTO(x.FilePath, x.Column, x.Line))
                     .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
                 Accessibility: m.Accessibility,
-                Summary: m.Summary,
+                Summary: includeSummary ? m.Summary : null,
                 IsStatic: m.IsStatic,
                 IsInherited: m.IsInherited
             ));
