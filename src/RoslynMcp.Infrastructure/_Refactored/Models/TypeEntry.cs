@@ -3,21 +3,63 @@ using System.Linq;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
+/// <summary>
+/// Представляет информацию о типе (класс, структура, интерфейс, перечисление, record),
+/// извлечённую из символа Roslyn <see cref="Microsoft.CodeAnalysis.INamedTypeSymbol"/>.
+/// </summary>
 public sealed class TypeEntry
 {
+    /// <summary>
+    /// Имя символа типа.
+    /// </summary>
     public string SymbolName { get; init; }
+    
+    /// <summary>
+    /// Вид типа (класс, структура, интерфейс, перечисление, record).
+    /// </summary>
     public TypeEntryKind Kind { get; init; }
+    
+    /// <summary>
+    /// Область видимости типа (public, internal, private и т.д.).
+    /// </summary>
     public SymbolAccessibility Accessibility { get; init; }
     
+    /// <summary>
+    /// Пространство имён, в котором объявлен тип.
+    /// </summary>
     public string? Namespace { get; init; }
+    
+    /// <summary>
+    /// Базовые типы (базовый класс и реализуемые интерфейсы).
+    /// </summary>
     public IEnumerable<TypeEntry>? BaseTypes { get; init; }
+    
+    /// <summary>
+    /// Расположение исходного кода типа в файлах.
+    /// </summary>
     public IEnumerable<SourceLocation> Location { get; init; }
+    
+    /// <summary>
+    /// Краткое описание из документации (XML-комментариев).
+    /// </summary>
     public string? Summary { get; init; }
     
+    /// <summary>
+    /// Имя проекта, содержащего тип.
+    /// </summary>
     public string ProjectName { get; init; }
+    
+    /// <summary>
+    /// Путь к файлу проекта.
+    /// </summary>
     public string? ProjectPath { get; init; }
 
-    public TypeEntry(INamedTypeSymbol symbol, Project project)
+    /// <summary>
+    /// Создаёт экземпляр <see cref="TypeEntry"/> на основе символа типа Roslyn.
+    /// </summary>
+    /// <param name="symbol">Символ типа из <see cref="Microsoft.CodeAnalysis.INamedTypeSymbol"/>.</param>
+    /// <param name="project">Проект Roslyn, содержащий тип <see cref="Microsoft.CodeAnalysis.Project"/>.</param>
+    public TypeEntry(Microsoft.CodeAnalysis.INamedTypeSymbol symbol, Microsoft.CodeAnalysis.Project project)
     {
         SymbolName = symbol.GetSymbolName();
         Kind = symbol.GetTypeEntryKind();
