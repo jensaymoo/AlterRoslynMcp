@@ -4,52 +4,27 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public enum Severity
-{
-    Error,
-    Warning,
-    Info
-}
-
-public class Diagnostic
-{
-    public required string Code { get; init; }
-    public required Severity Severity { get; init; }
-    public required string Message { get; init; }
-    public required SourceLocation? Location { get; init; }
-}
-
-
 public class AnalyzeSolutionService(ILogger<AnalyzeSolutionService> logger) : IAnalyzeSolutionService
 {
-    public async Task<IEnumerable<Diagnostic>> AnalyzeSolutionAsync(Solution solution, CancellationToken ct)
+    public async Task<IEnumerable<Diagnostic>> AnalyzeSolutionAsync(Solution solution, CancellationToken ct = default)
     {
         try
         {
-            var diagnostics = new List<Diagnostic>();
+            var compilations = await Task.WhenAll(
+                    solution.Projects.Select(p => p.GetCompilationAsync(ct))
+                );
 
-            foreach (var project in solution.Projects)
-            {
-                if (await project.GetCompilationAsync(ct) is { } compilation)
+            var diagnostics = compilations
+                .OfType<Compilation>()
+                .SelectMany(c => c.GetDiagnostics())
+                .Where(d => d.Severity != DiagnosticSeverity.Hidden)
+                .Select(d => new Diagnostic
                 {
-                    var projectDiagn = compilation.GetDiagnostics();
-                    var dignItems = projectDiagn
-                        .Where(d => d.Severity != DiagnosticSeverity.Hidden)
-                        .Select(d => new Diagnostic() {
-                            Code = d.Id,
-                            Severity = d.Severity switch
-                            {
-                                DiagnosticSeverity.Error => Severity.Error,
-                                DiagnosticSeverity.Warning => Severity.Warning,
-                                _ => Severity.Info
-                            },
-                            Message = d.GetMessage(),
-                            Location= d.Location.AsSourceLocation()}
-                        );
-
-                    diagnostics.AddRange(dignItems);
-                }
-            }
+                    Code = d.Id,
+                    Severity = d.GetSeverity(),
+                    Message = d.GetMessage(),
+                    Location = d.Location.AsSourceLocation()
+                });
 
             return OrderDiagnostics(diagnostics);
         }

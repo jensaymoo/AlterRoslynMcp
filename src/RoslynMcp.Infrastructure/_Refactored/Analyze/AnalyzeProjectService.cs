@@ -5,31 +5,26 @@ namespace RoslynMcp.Infrastructure._Refactored;
 
 public class AnalyzeProjectService(ILogger<AnalyzeProjectService> logger) : IAnalyzeProjectService
 {
-    public async Task<IEnumerable<Diagnostic>> AnalyzeProjectAsync(Project project, CancellationToken ct)
+    public async Task<IEnumerable<Diagnostic>> AnalyzeProjectAsync(Project project, CancellationToken ct = default)
     {
         try
         {
-            if (await project.GetCompilationAsync(ct) is not { } compilation)
+            if (await project.GetCompilationAsync(ct) is { } compilation)
             {
-                return Enumerable.Empty<Diagnostic>();
+                var diagnostics = compilation.GetDiagnostics()
+                    .Where(d => d.Severity != DiagnosticSeverity.Hidden)
+                    .Select(d => new Diagnostic
+                    {
+                        Code = d.Id,
+                        Severity = d.GetSeverity(),
+                        Message = d.GetMessage(),
+                        Location = d.Location.AsSourceLocation()
+                    });
+
+                return OrderDiagnostics(diagnostics);
             }
 
-            var diagnostics = compilation.GetDiagnostics()
-                .Where(d => d.Severity != DiagnosticSeverity.Hidden)
-                .Select(d => new Diagnostic
-                {
-                    Code = d.Id,
-                    Severity = d.Severity switch
-                    {
-                        DiagnosticSeverity.Error => Severity.Error,
-                        DiagnosticSeverity.Warning => Severity.Warning,
-                        _ => Severity.Info
-                    },
-                    Message = d.GetMessage(),
-                    Location = d.Location.AsSourceLocation()
-                });
-
-            return OrderDiagnostics(diagnostics);
+            return Enumerable.Empty<Diagnostic>();
         }
         catch (Exception ex)
         {

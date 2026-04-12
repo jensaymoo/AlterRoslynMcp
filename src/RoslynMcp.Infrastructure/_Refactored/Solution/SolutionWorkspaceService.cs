@@ -24,7 +24,7 @@ public class SolutionWorkspaceService(ILogger<SolutionWorkspaceService> logger):
         throw new SolutionNotLoadedException("Solution not loaded");
     }
     
-    public async Task<Solution> LoadSolutionAsync(string solutionFilePath, CancellationToken ct)
+    public async Task<Solution> LoadSolutionAsync(string solutionFilePath, CancellationToken ct = default)
     {
         if (_workspace is not null)
         {
@@ -47,7 +47,7 @@ public class SolutionWorkspaceService(ILogger<SolutionWorkspaceService> logger):
         }
     }
 
-    public async Task<Solution> LoadProjectAsync(string csprojFilePath, CancellationToken ct)
+    public async Task<Solution> LoadProjectAsync(string csprojFilePath, CancellationToken ct = default)
     {
         if (_workspace is not null)
         {

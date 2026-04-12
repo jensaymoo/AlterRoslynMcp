@@ -1,40 +1,22 @@
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.SymbolDisplay;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
 public class TypeResolverService : ITypeResolverService
 {
-    public string GetDisplayName(INamedTypeSymbol namedType)
+    public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolName, Solution solution, CancellationToken ct = default)
     {
-        return namedType.ToDisplayString(
-            SymbolDisplayFormat.FullyQualifiedFormat
-                .WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.OmittedAsContaining));
+        var results = await Task.WhenAll(
+            solution.Projects
+                .Select(prj => GetNamedTypeAsync(symbolName, prj, ct))
+            );
+        
+        return results.FirstOrDefault(r => r != null);
     }
 
-    public string GetDisplayNamespace(INamedTypeSymbol namedType)
+    public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolName, Project project, CancellationToken ct = default)
     {
-        return namedType.ContainingNamespace.ToDisplayString(
-            SymbolDisplayFormat.FullyQualifiedFormat
-                .WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.OmittedAsContaining));
-    }
-
-    public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string displayName, Solution solution)
-    {
-        foreach (var project in solution.Projects)
-        {
-            var result = await GetNamedTypeAsync(displayName, project);
-            if (result != null)
-            {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string displayName, Project project)
-    {
-        var compilation = await project.GetCompilationAsync(CancellationToken.None);
+        var compilation = await project.GetCompilationAsync(ct);
         if (compilation == null)
         {
             return null;
@@ -44,6 +26,6 @@ public class TypeResolverService : ITypeResolverService
             .EnumerateTypes(includeGenerated: false)
             .FirstOrDefault(type =>
                 type.DeclaringSyntaxReferences.Any() &&
-                GetDisplayName(type) == displayName);
+                type.GetSymbolName() == symbolName);
     }
 }

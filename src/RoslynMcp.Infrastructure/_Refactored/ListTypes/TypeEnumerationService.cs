@@ -13,7 +13,10 @@ public class TypeEnumerationService(
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
 
-            var allTypes = await Task.WhenAll(solution.Projects.Select(p => EnumerateProjectTypesAsync(p, ct)));
+            var allTypes = await Task.WhenAll(
+                solution.Projects
+                    .Select(p => EnumerateProjectTypesAsync(p, ct))
+                );
 
             return allTypes
                 .SelectMany(x => x)
@@ -27,7 +30,7 @@ public class TypeEnumerationService(
         }
     }
 
-    private async Task<IEnumerable<TypeEntry>> EnumerateProjectTypesAsync(Project project, CancellationToken ct)
+    private async Task<IEnumerable<TypeEntry>> EnumerateProjectTypesAsync(Project project, CancellationToken ct  = default)
     {
         if (await project.GetCompilationAsync(ct) is not { } compilation)
             return [];
@@ -44,7 +47,7 @@ public class TypeEnumerationService(
             .Select(t => new TypeEntry(t, project));
     }
 
-    private static async Task<SyntaxTree?[]> GetProjectSyntaxTreesAsync(Project project, CancellationToken ct)
+    private static async Task<SyntaxTree?[]> GetProjectSyntaxTreesAsync(Project project, CancellationToken ct = default)
         => await Task.WhenAll(
             project.Documents
                 .Where(d => d.SupportsSyntaxTree)

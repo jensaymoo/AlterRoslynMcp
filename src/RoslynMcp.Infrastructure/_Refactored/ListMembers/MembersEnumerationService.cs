@@ -7,13 +7,13 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
     ISolutionWorkspaceService solutionWorkspaceService) : IMembersEnumerationService
 {
     public async Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
-        string fullTypeName, MemberEntryKind? kind, SymbolAccessibility? accessibility, bool includeInherited, CancellationToken ct)
+        string symbolName, MemberEntryKind? kind, SymbolAccessibility? accessibility, bool includeInherited, CancellationToken ct = default)
     {
         try
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
             
-            var typeSymbol = await typeResolverService.GetNamedTypeAsync(fullTypeName, solution);
+            var typeSymbol = await typeResolverService.GetNamedTypeAsync(symbolName, solution, ct);
             if (typeSymbol == null)
                 return [];
 

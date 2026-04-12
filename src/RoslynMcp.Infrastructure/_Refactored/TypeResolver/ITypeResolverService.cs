@@ -4,8 +4,6 @@ namespace RoslynMcp.Infrastructure._Refactored;
 
 public interface ITypeResolverService : IScopedService
 {
-    string GetDisplayName(INamedTypeSymbol namedType);
-    string GetDisplayNamespace(INamedTypeSymbol namedType);
-    Task<INamedTypeSymbol?> GetNamedTypeAsync(string displayName, Solution solution);
-    Task<INamedTypeSymbol?> GetNamedTypeAsync(string displayName, Project project);
+    Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolName, Solution solution, CancellationToken ct = default);
+    Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolName, Project project, CancellationToken ct = default);
 }
