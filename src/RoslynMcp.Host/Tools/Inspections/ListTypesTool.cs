@@ -63,7 +63,7 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                     var firstProject = g.First();
 
                     return new ListTypesResultDTO(
-                        new ProjectSummaryDTO(g.Key, firstProject.ProjectPath),
+                        new ProjectSummaryDTO(g.Key, firstProject.ProjectPath, null),
                         g.GroupBy(x => x.SymbolName)
                             .Select(typeGroup =>
                             {

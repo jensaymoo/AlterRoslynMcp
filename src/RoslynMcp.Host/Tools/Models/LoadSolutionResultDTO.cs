@@ -1,5 +1,4 @@
 namespace RoslynMcp.Host.Tools.Models;
 
 public record LoadSolutionResultDTO(string SolutionPath,
-    IEnumerable<ProjectSummaryDTO> Projects,
-    IEnumerable<DiagnosticDTO> BaselineDiagnostics);
+    IEnumerable<ProjectSummaryDTO> Projects);

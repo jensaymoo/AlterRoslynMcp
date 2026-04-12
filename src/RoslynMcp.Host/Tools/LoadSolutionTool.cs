@@ -7,7 +7,7 @@ using RoslynMcp.Infrastructure._Refactored;
 namespace RoslynMcp.Host.Tools;
 
 [McpServerToolType]
-public sealed class LoadSolutionTool(ISolutionWorkspaceService solutionWorkspaceService, IAnalyzeSolutionService analyzeSolutionService)
+public sealed class LoadSolutionTool(ISolutionWorkspaceService solutionWorkspaceService, IAnalyzeProjectService analyzeProjectService)
 {
     [McpServerTool(Name = "load_solution", Title = "Load Solution", ReadOnly = false, Idempotent = false)]
     [Description(
@@ -25,22 +25,25 @@ public sealed class LoadSolutionTool(ISolutionWorkspaceService solutionWorkspace
         try
         {
             var solution = await solutionWorkspaceService.LoadSolutionAsync(slnFilePath, ct);
-            var diagnostic = await analyzeSolutionService.AnalyzeSolutionAsync(solution, ct);
 
-            var result = diagnostic
-                .Select(x => new DiagnosticDTO(
-                    x.Code,
-                    x.Severity,
-                    x.Message,
-                    x.Location is null ? null 
-                        : new SourceLocationDTO(x.Location.FilePath,x.Location.Column,x.Location.Line)
-                ));
-            
-            var projects = solution.Projects
-                .OrderBy(static p => p.Name, StringComparer.Ordinal)
-                .Select(static p => new ProjectSummaryDTO(p.Name, p.FilePath));
-            
-            return new LoadSolutionResultDTO(solution.FilePath!, projects, result);
+            var projects = await Task.WhenAll(
+                solution.Projects
+                    .OrderBy(static p => p.Name, StringComparer.Ordinal)
+                    .Select(async p =>
+                    {
+                        var diagnostics = await analyzeProjectService.AnalyzeProjectAsync(p, ct);
+                        var diagnosticDtos = diagnostics
+                            .Select(x => new DiagnosticDTO(
+                                x.Code,
+                                x.Severity,
+                                x.Message,
+                                x.Location != null ? new SourceLocationDTO(x.Location.FilePath,
+                                    x.Location.Column, x.Location.Line) : null
+                            ));
+                        return new ProjectSummaryDTO(p.Name, p.FilePath, diagnosticDtos);
+                    }));
+
+            return new LoadSolutionResultDTO(solution.FilePath!, projects);
         }
         catch (Exception e)
         {
