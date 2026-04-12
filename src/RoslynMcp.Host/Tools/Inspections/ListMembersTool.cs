@@ -47,7 +47,12 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
                 Accessibility: m.Accessibility,
                 Summary: includeSummary ? m.Summary : null,
                 IsStatic: m.IsStatic,
-                IsInherited: m.IsInherited
+                IsInherited: m.IsInherited,
+                IsVirtual: m.IsVirtual,
+                IsOverride: m.IsOverride,
+                IsAbstract: m.IsAbstract,
+                IsSealed: m.IsSealed,
+                IsExtern: m.IsExtern
             ));
         }
         catch (SolutionNotLoadedException)

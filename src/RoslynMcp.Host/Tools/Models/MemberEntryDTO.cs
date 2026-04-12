@@ -11,5 +11,10 @@ public record MemberEntryDTO
     SymbolAccessibility Accessibility,
     bool IsStatic,
     bool IsInherited,
-    string? Summary
+    string? Summary,
+    bool IsVirtual,
+    bool IsOverride,
+    bool IsAbstract,
+    bool IsSealed,
+    bool IsExtern
 );

@@ -17,6 +17,12 @@ public sealed class MemberEntry
     public bool IsStatic { get; init; }
     public bool IsInherited { get; init; }
 
+    public bool IsVirtual { get; init; }
+    public bool IsOverride { get; init; }
+    public bool IsAbstract { get; init; }
+    public bool IsSealed { get; init; }
+    public bool IsExtern { get; init; }
+
     public MemberEntry(ISymbol member, INamedTypeSymbol type)
     {
         SymbolName = member.GetSymbolName();
@@ -29,6 +35,12 @@ public sealed class MemberEntry
         
         IsStatic = member.IsStatic;
         IsInherited = IsInheritedFrom(member, type);
+
+        IsVirtual = member.IsVirtual;
+        IsOverride = member.IsOverride;
+        IsAbstract = member.IsAbstract;
+        IsSealed = member.IsSealed;
+        IsExtern = member.IsExtern;
     }
     
     private static bool IsInheritedFrom(ISymbol member, INamedTypeSymbol sourceType)
