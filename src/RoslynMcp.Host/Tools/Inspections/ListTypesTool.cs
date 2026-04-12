@@ -40,18 +40,7 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
             Pass false to omit summaries. Defaults to false.
             """
         )]
-        bool includeSummary = false,
-
-        [Description(
-            """
-            When true, includes a lightweight preview of declared members for each returned type entry. 
-            This is not full member metadata: each member is returned as a single normalized accessibility-plus-signature 
-            string, and only members declared on that type are included. Enrichment is applied only to the type entries 
-            returned on the current page. Use list_members as the detailed follow-up tool. When omitted or false, 
-            members are omitted. Defaults to false.
-            """
-        )]
-        bool includeMembers = false)
+        bool includeSummary = false)
     {
         try
         {
