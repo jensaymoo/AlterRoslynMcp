@@ -79,7 +79,7 @@ public sealed class MemberEntry
     /// </summary>
     /// <param name="member">Символ члена типа из <see cref="Microsoft.CodeAnalysis.ISymbol"/>.</param>
     /// <param name="type">Тип, из которого извлекается член <see cref="Microsoft.CodeAnalysis.INamedTypeSymbol"/>.</param>
-    public MemberEntry(Microsoft.CodeAnalysis.ISymbol member, Microsoft.CodeAnalysis.INamedTypeSymbol type)
+    public MemberEntry(ISymbol member, INamedTypeSymbol type)
     {
         SymbolName = member.GetSymbolName();
         Signature = member.GetSignature();

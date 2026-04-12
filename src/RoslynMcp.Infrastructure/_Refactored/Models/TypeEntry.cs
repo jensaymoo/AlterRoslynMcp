@@ -59,7 +59,7 @@ public sealed class TypeEntry
     /// </summary>
     /// <param name="symbol">Символ типа из <see cref="Microsoft.CodeAnalysis.INamedTypeSymbol"/>.</param>
     /// <param name="project">Проект Roslyn, содержащий тип <see cref="Microsoft.CodeAnalysis.Project"/>.</param>
-    public TypeEntry(Microsoft.CodeAnalysis.INamedTypeSymbol symbol, Microsoft.CodeAnalysis.Project project)
+    public TypeEntry(INamedTypeSymbol symbol, Project project)
     {
         SymbolName = symbol.GetSymbolName();
         Kind = symbol.GetTypeEntryKind();
