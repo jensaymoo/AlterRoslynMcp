@@ -25,7 +25,7 @@ public sealed class MemberEntry
         Accessibility = member.GetSymbolAccessibility();
 
         Location = member.Locations.AsSourceLocations();
-        Summary = member.GetDocumentationCommentXml();
+        Summary = member.GetDocumentationSummary();
         
         IsStatic = member.IsStatic;
         IsInherited = IsInheritedFrom(member, type);

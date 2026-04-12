@@ -24,7 +24,7 @@ public sealed class TypeEntry
         Accessibility = symbol.GetSymbolAccessibility();
         Namespace = symbol.ContainingNamespace.GetSymbolNameOrNull();
         Location = symbol.Locations.AsSourceLocations();
-        Summary = symbol.GetDocumentationCommentXml();
+        Summary = symbol.GetDocumentationSummary();
 
         ProjectName = project.Name;
         ProjectPath = project.FilePath;
