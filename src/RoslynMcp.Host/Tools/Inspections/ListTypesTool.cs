@@ -45,8 +45,8 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
         try
         {
             var types = string.IsNullOrWhiteSpace(projectName)
-                ? await typeEnumerationService.EnumerateTypesBySolutionAsync(ct)
-                : await typeEnumerationService.EnumerateTypesByProjectAsync(projectName, ct);
+                ? await typeEnumerationService.EnumerateTypesAsync(ct)
+                : await typeEnumerationService.EnumerateTypesAsync(projectName, ct);
 
             var filtered = types
                 .Where(x => string.IsNullOrEmpty(namespacePrefix) || 

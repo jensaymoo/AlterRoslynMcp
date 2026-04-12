@@ -11,21 +11,20 @@ public class TypeResolverService : ITypeResolverService
                 .Select(prj => GetNamedTypeAsync(symbolName, prj, ct))
             );
         
-        return results.FirstOrDefault(r => r != null);
+        return results.FirstOrDefault(r => r != null) 
+               ?? throw new TypeEntryNotFoundException($"Type '{symbolName}' not found in solution");
     }
 
     public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolName, Project project, CancellationToken ct = default)
     {
-        var compilation = await project.GetCompilationAsync(ct);
-        if (compilation == null)
-        {
+        if (await project.GetCompilationAsync(ct) is not { } compilation)
             return null;
-        }
 
         return compilation.GlobalNamespace
-            .EnumerateTypes(includeGenerated: false)
-            .FirstOrDefault(type =>
-                type.DeclaringSyntaxReferences.Any() &&
-                type.GetSymbolName() == symbolName);
+                   .EnumerateTypes(includeGenerated: false)
+                   .FirstOrDefault(type =>
+                       type.DeclaringSyntaxReferences.Any() &&
+                       type.GetSymbolName() == symbolName)
+               ?? throw new TypeEntryNotFoundException($"Type '{symbolName}' not found in project '{project.Name}'");
     }
 }

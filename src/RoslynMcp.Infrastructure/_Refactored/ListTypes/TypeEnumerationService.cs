@@ -7,7 +7,7 @@ public class TypeEnumerationService(
     ILogger<TypeEnumerationService> logger,
     ISolutionWorkspaceService solutionWorkspaceService) : ITypeEnumerationService
 {
-    public async Task<IEnumerable<TypeEntry>> EnumerateTypesBySolutionAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<TypeEntry>> EnumerateTypesAsync(CancellationToken ct = default)
     {
         try
         {
@@ -27,7 +27,7 @@ public class TypeEnumerationService(
         }
     }
 
-    public async Task<IEnumerable<TypeEntry>> EnumerateTypesByProjectAsync(string projectName, CancellationToken ct = default)
+    public async Task<IEnumerable<TypeEntry>> EnumerateTypesAsync(string projectName, CancellationToken ct = default)
     {
         try
         {
