@@ -42,7 +42,7 @@ public sealed class TypeEntry
             .OfType<TypeEntry>()
             .ToList();
 
-        return entries.Count > 0 ? entries : null;
+        return entries;
     }
 
     private static IEnumerable<INamedTypeSymbol> GetDirectBaseSymbols(INamedTypeSymbol type)
