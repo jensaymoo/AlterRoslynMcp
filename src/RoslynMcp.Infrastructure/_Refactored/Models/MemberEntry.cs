@@ -10,10 +10,15 @@ namespace RoslynMcp.Infrastructure._Refactored;
 public sealed class MemberEntry
 {
     /// <summary>
-    /// Имя символа члена.
+    /// Уникальный идентификатор символа члена (documentation comment ID, например M:Namespace.Class.Method(System.String)).
+    /// </summary>
+    public string SymbolId { get; init; }
+
+    /// <summary>
+    /// Короткое имя члена без qualification (только для отображения).
     /// </summary>
     public string SymbolName { get; init; }
-    
+
     /// <summary>
     /// Сигнатура члена в строковом представлении.
     /// </summary>
@@ -81,7 +86,8 @@ public sealed class MemberEntry
     /// <param name="type">Тип, из которого извлекается член <see cref="Microsoft.CodeAnalysis.INamedTypeSymbol"/>.</param>
     public MemberEntry(ISymbol member, INamedTypeSymbol type)
     {
-        SymbolName = member.GetSymbolName();
+        SymbolId = member.GetSymbolId();
+        SymbolName = member.Name;
         Signature = member.GetSignature();
         Kind = member.GetMemberEntryKind();
         Accessibility = member.GetSymbolAccessibility();

@@ -4,6 +4,7 @@ namespace RoslynMcp.Host.Tools.Models;
 
 public record MemberEntryDTO
 (
+    string SymbolId,
     string SymbolName,
     MemberEntryKind Kind,
     string Signature,

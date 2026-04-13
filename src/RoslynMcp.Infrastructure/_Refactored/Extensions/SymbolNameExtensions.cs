@@ -24,4 +24,12 @@ public static class SymbolNameExtensions
         member is IMethodSymbol { MethodKind: MethodKind.Constructor } ctor
             ? ctor.ContainingType.Name
             : member.ToDisplayString(Format);
+
+    internal static string GetSymbolId(this INamedTypeSymbol symbol)
+        => symbol.GetDocumentationCommentId()
+           ?? throw new InvalidOperationException($"Cannot get symbol ID for type '{symbol.GetSymbolName()}'");
+
+    internal static string GetSymbolId(this ISymbol symbol)
+        => symbol.GetDocumentationCommentId()
+           ?? throw new InvalidOperationException($"Cannot get symbol ID for symbol '{symbol.GetSymbolName()}'");
 }

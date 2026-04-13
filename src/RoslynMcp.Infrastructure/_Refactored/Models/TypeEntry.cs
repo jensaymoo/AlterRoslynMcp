@@ -10,7 +10,12 @@ namespace RoslynMcp.Infrastructure._Refactored;
 public sealed class TypeEntry
 {
     /// <summary>
-    /// Имя символа типа.
+    /// Уникальный идентификатор символа типа (documentation comment ID, например T:MyNamespace.MyClass).
+    /// </summary>
+    public string SymbolId { get; init; }
+
+    /// <summary>
+    /// Короткое имя типа без namespace и содержащих типов (только для отображения).
     /// </summary>
     public string SymbolName { get; init; }
     
@@ -61,7 +66,8 @@ public sealed class TypeEntry
     /// <param name="project">Проект Roslyn, содержащий тип <see cref="Microsoft.CodeAnalysis.Project"/>.</param>
     public TypeEntry(INamedTypeSymbol symbol, Project project)
     {
-        SymbolName = symbol.GetSymbolName();
+        SymbolId = symbol.GetSymbolId();
+        SymbolName = symbol.Name;
         Kind = symbol.GetTypeEntryKind();
         Accessibility = symbol.GetSymbolAccessibility();
         Namespace = symbol.ContainingNamespace.GetSymbolNameOrNull();

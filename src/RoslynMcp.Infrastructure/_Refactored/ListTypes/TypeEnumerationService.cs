@@ -18,7 +18,7 @@ public class TypeEnumerationService(
                 );
             
             return types.SelectMany(x => x)
-                .OrderBy(x => x.SymbolName);
+                .OrderBy(x => x.SymbolId);
         }
         catch (Exception ex)
         {
@@ -39,7 +39,7 @@ public class TypeEnumerationService(
 
             var types = await EnumerateProjectTypesAsync(project, ct);
             
-            return types.OrderBy(x => x.SymbolName);
+            return types.OrderBy(x => x.SymbolId);
         }
         catch (Exception ex) when (ex is not ProjectNotFoundException)
         {

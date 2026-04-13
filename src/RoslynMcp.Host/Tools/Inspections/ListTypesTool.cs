@@ -62,13 +62,15 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
 
                     return new ListTypesResultDTO(
                         new ProjectSummaryDTO(g.Key, firstProject.ProjectPath, null),
-                        g.GroupBy(x => x.SymbolName)
+                        g.GroupBy(x => x.SymbolId)
                             .Select(typeGroup =>
                             {
                                 var firstType = typeGroup.First();
 
                                 return new TypeEntryDTO(
-                                    SymbolName: typeGroup.Key,
+                                    SymbolId: typeGroup.Key,
+                                    SymbolName: firstType.SymbolName,
+                                    Namespace: firstType.Namespace,
                                     Location: typeGroup.SelectMany(x => x.Location)
                                         .Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line))
                                         .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
@@ -76,7 +78,9 @@ public sealed class ListTypesTool(ITypeEnumerationService typeEnumerationService
                                     Kind: firstType.Kind,
                                     Summary: includeSummary ? firstType.Summary : null,
                                     BaseTypes: firstType.BaseTypes?.Select(bt => new TypeEntryDTO(
+                                        SymbolId: bt.SymbolId,
                                         SymbolName: bt.SymbolName,
+                                        Namespace: bt.Namespace,
                                         Location: bt.Location
                                             .Select(loc => new SourceLocationDTO(loc.FilePath, loc.Column, loc.Line))
                                             .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),

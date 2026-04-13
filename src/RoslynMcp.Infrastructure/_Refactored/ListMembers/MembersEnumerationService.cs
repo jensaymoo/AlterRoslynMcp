@@ -3,18 +3,18 @@ using Microsoft.Extensions.Logging;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class MembersEnumerationService(ILogger<MembersEnumerationService> logger, ITypeResolverService typeResolverService,
+public class MembersEnumerationService(ILogger<MembersEnumerationService> logger, ISymbolResolverService symbolResolverService,
     ISolutionWorkspaceService solutionWorkspaceService) : IMembersEnumerationService
 {
     public async Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
-        string symbolName, MemberEntryKind? kind, SymbolAccessibility? accessibility, bool includeInherited,
+        string symbolId, MemberEntryKind? kind, SymbolAccessibility? accessibility, bool includeInherited,
         CancellationToken ct = default)
     {
         try
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
-            var typeSymbol = await typeResolverService.GetNamedTypeAsync(symbolName, solution, ct)
-                ?? throw new TypeEntryNotFoundException($"Type '{symbolName}' not found in solution");
+            var typeSymbol = await symbolResolverService.GetNamedTypeAsync(symbolId, solution, ct)
+                ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in solution");
 
             return FilterAndSort(typeSymbol, kind, accessibility, includeInherited);
         }
@@ -26,7 +26,7 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
     }
 
     public async Task<IEnumerable<MemberEntry>> EnumerateMembersAsync(
-        string symbolName, string projectName, MemberEntryKind? kind, SymbolAccessibility? accessibility,
+        string symbolId, string projectName, MemberEntryKind? kind, SymbolAccessibility? accessibility,
         bool includeInherited, CancellationToken ct = default)
     {
         try
@@ -37,8 +37,8 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
                 .FirstOrDefault(p => p.Name.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
                 ?? throw new ProjectNotFoundException($"Project '{projectName}' not found");
 
-            var typeSymbol = await typeResolverService.GetNamedTypeAsync(symbolName, project, ct)
-                ?? throw new TypeEntryNotFoundException($"Type '{symbolName}' not found in project '{projectName}'");
+            var typeSymbol = await symbolResolverService.GetNamedTypeAsync(symbolId, project, ct)
+                ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in project '{projectName}'");
 
             return FilterAndSort(typeSymbol, kind, accessibility, includeInherited);
         }
@@ -55,11 +55,12 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
             .Select(m => new MemberEntry(m, typeSymbol))
             .Where(e => (kind == null || e.Kind == kind) && (accessibility == null || e.Accessibility == accessibility))
             .OrderBy(e => e.Kind)
-            .ThenBy(e => e.SymbolName)
+            .ThenBy(e => e.SymbolId)
             .ThenBy(e => e.Signature);
 
     private static IEnumerable<ISymbol> GetMembers(INamedTypeSymbol typeSymbol, bool includeInherited) =>
-        includeInherited
+        (includeInherited
             ? new MembersInheritanceCollector(typeSymbol).CollectWithInheritance()
-            : typeSymbol.GetMembers();
+            : typeSymbol.GetMembers())
+        .Where(m => !m.IsImplicitlyDeclared);
 }

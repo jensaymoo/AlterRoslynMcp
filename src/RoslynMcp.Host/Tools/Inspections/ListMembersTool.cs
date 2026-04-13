@@ -17,8 +17,8 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
         """
     )]
     public async Task<IEnumerable<MemberEntryDTO>> ExecuteAsync(CancellationToken ct,
-        [Description("Full name of the type (e.g., RoslynMcp.Infrastructure.Service).")]
-        string symbolName,
+        [Description("Symbol ID of the type (e.g., T:RoslynMcp.Infrastructure.MyService).")]
+        string symbolId,
         
         [Description("Name of a project. When omitted or empty, returns types from all projects.")]
         string? projectName = null,
@@ -38,10 +38,11 @@ public sealed class ListMembersTool(IMembersEnumerationService membersEnumeratio
         try
         {
             var members = string.IsNullOrWhiteSpace(projectName)
-                ? await membersEnumerationService.EnumerateMembersAsync(symbolName, kind, accessibility, includeInherited, ct)
-                : await membersEnumerationService.EnumerateMembersAsync(symbolName, projectName, kind, accessibility, includeInherited, ct);
+                ? await membersEnumerationService.EnumerateMembersAsync(symbolId, kind, accessibility, includeInherited, ct)
+                : await membersEnumerationService.EnumerateMembersAsync(symbolId, projectName, kind, accessibility, includeInherited, ct);
 
             return members.Select(m => new MemberEntryDTO(
+                SymbolId: m.SymbolId,
                 SymbolName: m.SymbolName,
                 Kind: m.Kind,
                 Signature: m.Signature,
