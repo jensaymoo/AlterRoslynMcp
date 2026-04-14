@@ -45,6 +45,7 @@ internal static class HostExtensions
             builder.WithTools<LoadSolutionTool>(serializerOptions);
             builder.WithTools<ListTypesTool>(serializerOptions);
             builder.WithTools<ListMembersTool>(serializerOptions);
+            builder.WithTools<ResolveSymbolTool>(serializerOptions);
             //builder.WithToolsFromAssembly(serializerOptions: serializerOptions);
         }
     }

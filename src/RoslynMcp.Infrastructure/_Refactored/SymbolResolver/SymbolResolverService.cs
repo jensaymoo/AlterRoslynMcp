@@ -7,10 +7,13 @@ public class SymbolResolverService : ISymbolResolverService
     public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolId, Solution solution, CancellationToken ct = default)
     {
         var results = await Task.WhenAll(
-            solution.Projects.Select(prj => GetNamedTypeAsync(symbolId, prj, ct))
+            solution.Projects.Select(async prj =>
+            {
+                try { return await GetNamedTypeAsync(symbolId, prj, ct); }
+                catch (TypeEntryNotFoundException) { return null; }
+            })
         );
-
-        return results.FirstOrDefault(r => r != null)
+        return results.OfType<INamedTypeSymbol>().FirstOrDefault()
                ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in solution");
     }
 
@@ -30,10 +33,13 @@ public class SymbolResolverService : ISymbolResolverService
     public async Task<ISymbol?> GetMemberAsync(string symbolId, Solution solution, CancellationToken ct = default)
     {
         var results = await Task.WhenAll(
-            solution.Projects.Select(prj => GetMemberAsync(symbolId, prj, ct))
+            solution.Projects.Select(async prj =>
+            {
+                try { return await GetMemberAsync(symbolId, prj, ct); }
+                catch (MemberEntryNotFoundException) { return null; }
+            })
         );
-
-        return results.FirstOrDefault(r => r != null)
+        return results.OfType<ISymbol>().FirstOrDefault()
                ?? throw new MemberEntryNotFoundException($"Member '{symbolId}' not found in solution");
     }
 

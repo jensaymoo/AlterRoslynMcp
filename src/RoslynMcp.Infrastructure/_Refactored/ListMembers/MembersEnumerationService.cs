@@ -34,7 +34,7 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
             var solution = solutionWorkspaceService.GetCurrentSolution();
 
             var project = solution.Projects
-                .FirstOrDefault(p => p.Name.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault(p => p.Name.Equals(projectName))
                 ?? throw new ProjectNotFoundException($"Project '{projectName}' not found");
 
             var typeSymbol = await symbolResolverService.GetNamedTypeAsync(symbolId, project, ct)

@@ -2,42 +2,34 @@ using Microsoft.CodeAnalysis;
 
 namespace RoslynMcp.Infrastructure._Refactored;
 
-public class ResolveSymbolService(ISolutionWorkspaceService workspaceService) : IResolveSymbolService
+public class ResolveSymbolService(
+    ISolutionWorkspaceService workspaceService,
+    ISymbolResolverService symbolResolver) : IResolveSymbolService
 {
     public async Task<IEnumerable<ResolvedSymbolEntry>> ResolveAsync(string symbolId, CancellationToken ct)
     {
         var solution = workspaceService.GetCurrentSolution();
-        var results = new List<ResolvedSymbolEntry>();
 
-        foreach (var project in solution.Projects)
-        {
-            if (await project.GetCompilationAsync(ct) is not { } compilation)
-                continue;
+        var results = (await Task.WhenAll(
+            solution.Projects.Select(async project =>
+            {
+                try { return (ResolvedSymbolEntry?)new ResolvedSymbolEntry(await FindSymbolAsync(symbolId, project, ct), project); }
+                catch (SymbolEntryNotFoundException) { return null; }
+            })
+        )).OfType<ResolvedSymbolEntry>().ToList();
 
-            var symbol = FindSymbol(compilation, symbolId);
-            if (symbol == null)
-                continue;
-
-            results.Add(new ResolvedSymbolEntry(symbol, project));
-        }
-
-        return results;
+        return results.Count > 0 ? results
+            : throw new SymbolEntryNotFoundException($"Symbol '{symbolId}' not found in solution");
     }
 
-    private static ISymbol? FindSymbol(Compilation compilation, string symbolId)
+    private async Task<ISymbol> FindSymbolAsync(string symbolId, Project project, CancellationToken ct)
     {
-        var types = compilation.GlobalNamespace
-            .EnumerateTypes(includeGenerated: false)
-            .Where(t => t.DeclaringSyntaxReferences.Any());
+        try { return await symbolResolver.GetNamedTypeAsync(symbolId, project, ct); }
+        catch (TypeEntryNotFoundException) { }
 
-        // Поиск как тип
-        var type = types.FirstOrDefault(t => t.GetDocumentationCommentId() == symbolId);
-        if (type != null)
-            return type;
+        try { return await symbolResolver.GetMemberAsync(symbolId, project, ct); }
+        catch (MemberEntryNotFoundException) { }
 
-        // Поиск как член типа
-        return types
-            .SelectMany(t => t.GetMembers())
-            .FirstOrDefault(m => m.GetDocumentationCommentId() == symbolId);
+        throw new SymbolEntryNotFoundException($"Symbol '{symbolId}' not found in project '{project.Name}'");
     }
 }
