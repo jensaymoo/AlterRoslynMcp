@@ -35,7 +35,7 @@ public class TypeEnumerationService(
 
             var project = solution.Projects
                 .FirstOrDefault(p => p.Name.Equals(projectName)) 
-                          ?? throw new ProjectNotFoundException($"Project '{projectName}' not found");
+                          ?? throw new ProjectNotFoundException(projectName);
 
             var types = await EnumerateProjectTypesAsync(project, ct);
             

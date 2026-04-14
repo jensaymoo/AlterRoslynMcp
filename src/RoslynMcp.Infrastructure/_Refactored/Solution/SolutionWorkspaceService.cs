@@ -21,7 +21,7 @@ public class SolutionWorkspaceService(ILogger<SolutionWorkspaceService> logger):
         if (_solution is not null)
             return _solution;
         
-        throw new SolutionNotLoadedException("Solution not loaded");
+        throw new SolutionNotLoadedException();
     }
     
     public async Task<Solution> LoadSolutionAsync(string solutionFilePath, CancellationToken ct = default)
@@ -43,7 +43,7 @@ public class SolutionWorkspaceService(ILogger<SolutionWorkspaceService> logger):
         catch (Exception ex)
         {
             logger.LogError(ex,  "Filed to load solution");
-            throw new LoadSolutionException(ex.Message, ex);
+            throw new LoadSolutionException(ex);
         }
     }
 
@@ -67,7 +67,7 @@ public class SolutionWorkspaceService(ILogger<SolutionWorkspaceService> logger):
         catch (Exception ex)
         {
             logger.LogError(ex,  "Filed to load project");
-            throw new LoadSolutionException(ex.Message, ex);
+            throw new LoadSolutionException(ex);
         }
     }
 }

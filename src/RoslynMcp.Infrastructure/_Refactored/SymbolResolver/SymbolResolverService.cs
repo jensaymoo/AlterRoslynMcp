@@ -14,7 +14,7 @@ public class SymbolResolverService : ISymbolResolverService
             })
         );
         return results.OfType<INamedTypeSymbol>().FirstOrDefault()
-               ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in solution");
+               ?? throw new TypeEntryNotFoundException(symbolId);
     }
 
     public async Task<INamedTypeSymbol?> GetNamedTypeAsync(string symbolId, Project project, CancellationToken ct = default)
@@ -27,7 +27,7 @@ public class SymbolResolverService : ISymbolResolverService
                    .FirstOrDefault(type =>
                        type.DeclaringSyntaxReferences.Any() &&
                        type.GetDocumentationCommentId() == symbolId)
-               ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in project '{project.Name}'");
+               ?? throw new TypeEntryNotFoundException(symbolId, project.Name);
     }
 
     public async Task<ISymbol?> GetMemberAsync(string symbolId, Solution solution, CancellationToken ct = default)
@@ -40,7 +40,7 @@ public class SymbolResolverService : ISymbolResolverService
             })
         );
         return results.OfType<ISymbol>().FirstOrDefault()
-               ?? throw new MemberEntryNotFoundException($"Member '{symbolId}' not found in solution");
+               ?? throw new MemberEntryNotFoundException(symbolId);
     }
 
     public async Task<ISymbol?> GetMemberAsync(string symbolId, Project project, CancellationToken ct = default)
@@ -53,6 +53,6 @@ public class SymbolResolverService : ISymbolResolverService
                    .Where(t => t.DeclaringSyntaxReferences.Any())
                    .SelectMany(t => t.GetMembers())
                    .FirstOrDefault(m => m.GetDocumentationCommentId() == symbolId)
-               ?? throw new MemberEntryNotFoundException($"Member '{symbolId}' not found in project '{project.Name}'");
+               ?? throw new MemberEntryNotFoundException(symbolId, project.Name);
     }
 }

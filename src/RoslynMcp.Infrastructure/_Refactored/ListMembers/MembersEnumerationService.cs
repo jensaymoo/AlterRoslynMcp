@@ -14,7 +14,7 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
         {
             var solution = solutionWorkspaceService.GetCurrentSolution();
             var typeSymbol = await symbolResolverService.GetNamedTypeAsync(symbolId, solution, ct)
-                ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in solution");
+                ?? throw new TypeEntryNotFoundException(symbolId);
 
             return FilterAndSort(typeSymbol, kind, accessibility, includeInherited);
         }
@@ -35,10 +35,10 @@ public class MembersEnumerationService(ILogger<MembersEnumerationService> logger
 
             var project = solution.Projects
                 .FirstOrDefault(p => p.Name.Equals(projectName))
-                ?? throw new ProjectNotFoundException($"Project '{projectName}' not found");
+                ?? throw new ProjectNotFoundException(projectName);
 
             var typeSymbol = await symbolResolverService.GetNamedTypeAsync(symbolId, project, ct)
-                ?? throw new TypeEntryNotFoundException($"Type '{symbolId}' not found in project '{projectName}'");
+                ?? throw new TypeEntryNotFoundException(symbolId, projectName);
 
             return FilterAndSort(typeSymbol, kind, accessibility, includeInherited);
         }

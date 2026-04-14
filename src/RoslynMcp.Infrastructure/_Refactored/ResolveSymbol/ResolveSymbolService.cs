@@ -19,7 +19,7 @@ public class ResolveSymbolService(
         )).OfType<ResolvedSymbolEntry>().ToList();
 
         return results.Count > 0 ? results
-            : throw new SymbolEntryNotFoundException($"Symbol '{symbolId}' not found in solution");
+            : throw new SymbolEntryNotFoundException(symbolId);
     }
 
     private async Task<ISymbol> FindSymbolAsync(string symbolId, Project project, CancellationToken ct)
@@ -30,6 +30,6 @@ public class ResolveSymbolService(
         try { return await symbolResolver.GetMemberAsync(symbolId, project, ct); }
         catch (MemberEntryNotFoundException) { }
 
-        throw new SymbolEntryNotFoundException($"Symbol '{symbolId}' not found in project '{project.Name}'");
+        throw new SymbolEntryNotFoundException(symbolId, project.Name);
     }
 }

@@ -2,15 +2,9 @@ namespace RoslynMcp.Infrastructure._Refactored;
 
 public class MemberEntryNotFoundException : Exception
 {
-    public MemberEntryNotFoundException() : base()
-    {
-    }
+    public MemberEntryNotFoundException(string symbolId)
+        : base($"Member '{symbolId}' not found in solution") { }
 
-    public MemberEntryNotFoundException(string? message) : base(message)
-    {
-    }
-
-    public MemberEntryNotFoundException(string? message, Exception? innerException) : base(message, innerException)
-    {
-    }
+    public MemberEntryNotFoundException(string symbolId, string projectName)
+        : base($"Member '{symbolId}' not found in project '{projectName}'") { }
 }
