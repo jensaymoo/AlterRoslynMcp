@@ -1,73 +1,49 @@
 using System.ComponentModel;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using RoslynMcp.Core;
-using RoslynMcp.Core.Contracts;
-using RoslynMcp.Core.Models;
+using RoslynMcp.Host.Tools.Models;
+using RoslynMcp.Infrastructure._Refactored;
 
 namespace RoslynMcp.Host.Tools.Inspections;
 
 [McpServerToolType]
-public sealed class ResolveSymbolTool(ICodeUnderstandingService codeUnderstandingService)
+public sealed class ResolveSymbolTool(IResolveSymbolService resolveSymbolService)
 {
-    private readonly ICodeUnderstandingService _codeUnderstandingService = codeUnderstandingService ?? throw new ArgumentNullException(nameof(codeUnderstandingService));
-
     [McpServerTool(Name = "resolve_symbol", Title = "Resolve Symbol", ReadOnly = true, Idempotent = true)]
     [Description(
         """
-        Use this tool when you have a source position (file path + line + column), a qualified symbol name, 
-        or an existing symbolId and need the stable symbolId and declaration location used by other 
-        navigation tools. Qualified-name lookup can search the whole loaded solution, but projectPath 
-        is the preferred stable disambiguator for automation.
+        Use this tool when you have a symbolId and need to resolve it to its declaration location
+        and metadata. Returns the symbol's display name, kind, source locations and owning project.
         """
     )]
-    public Task<ResolveSymbolResult> ExecuteAsync(CancellationToken cancellationToken,
-        [Description("An existing symbol ID to look up. Provide this OR path+line+column OR qualifiedName.")]
-        string? symbolId = null,
-
-        [Description("Path to a source file. Provide this together with line and column instead of symbolId or qualifiedName.")]
-        string? path = null,
-
-        [Description("Line number (1-based) in the source file.")]
-        int? line = null,
-
-        [Description("Column number (1-based) in the source file.")]
-        int? column = null,
-
-        [Description(
-            """
-            A fully qualified or short type/member name (e.g., System.String, MyNamespace.MyType.MyMethod, or MyMethod). 
-            Provide this instead of symbolId or path+line+column.
-            """
-        )]
-        string? qualifiedName = null,
-
-        [Description(
-            """
-            Optional project scope for qualifiedName lookup — path to a project that contains the symbol. 
-            Use to narrow ambiguous matches.
-            """
-        )]
-        string? projectPath = null,
-
-        [Description(
-            """
-            Optional project scope for qualifiedName lookup — name of a project that contains the symbol. 
-            Use to narrow ambiguous matches.
-            """
-        )]
-        string? projectName = null,
-
-        [Description(
-            """
-            Optional project scope for qualifiedName lookup — project ID from the active workspace snapshot. 
-            projectId values are snapshot-local and can change after reload, so prefer projectPath when you need 
-            a durable selector.
-            """
-        )]
-        string? projectId = null)
+    public async Task<IEnumerable<ResolvedSymbolDTO>> ExecuteAsync(CancellationToken ct,
+        [Description("Symbol ID to resolve (e.g., T:MyNamespace.MyType or M:MyNamespace.MyType.MyMethod).")]
+        string symbolId)
     {
-        return _codeUnderstandingService.ResolveSymbolAsync(
-            symbolId.ToResolveSymbolRequest(path, line, column, qualifiedName, projectPath, projectName, projectId),
-            cancellationToken);
+        try
+        {
+            var results = await resolveSymbolService.ResolveAsync(symbolId, ct);
+
+            return results.Select(r => new ResolvedSymbolDTO(
+                SymbolId: r.SymbolId,
+                DisplayName: r.DisplayName,
+                Kind: r.Kind,
+                Location: r.Location
+                    .Select(loc => new SourceLocationDTO(loc.FilePath, loc.Line, loc.Column))
+                    .DistinctBy(loc => new { loc.FilePath, loc.Line, loc.Column }),
+                ProjectName: r.ProjectName));
+        }
+        catch (SolutionNotLoadedException)
+        {
+            throw new McpException("""
+                                   Solution not loaded. Before performing any operations, you must first load the
+                                   project using the `load_solution` tool. Ensure the solution is successfully loaded
+                                   and available in the current context, then proceed with further actions.
+                                   """);
+        }
+        catch (Exception e)
+        {
+            throw new McpException(e.Message, e);
+        }
     }
 }

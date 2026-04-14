@@ -21,13 +21,34 @@ public static class EntryKindExtensions
     {
         return member switch
         {
-            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor } 
+            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor }
                 => MemberEntryKind.Constructor,
             IMethodSymbol => MemberEntryKind.Method,
             IPropertySymbol => MemberEntryKind.Property,
             IFieldSymbol => MemberEntryKind.Field,
             IEventSymbol => MemberEntryKind.Event,
             _ => MemberEntryKind.Method
+        };
+    }
+
+    internal static SymbolEntryKind GetSymbolEntryKind(this ISymbol symbol)
+    {
+        return symbol switch
+        {
+            INamedTypeSymbol { IsRecord: true } => SymbolEntryKind.Record,
+            INamedTypeSymbol { TypeKind: TypeKind.Class } => SymbolEntryKind.Class,
+            INamedTypeSymbol { TypeKind: TypeKind.Interface } => SymbolEntryKind.Interface,
+            INamedTypeSymbol { TypeKind: TypeKind.Enum } => SymbolEntryKind.Enum,
+            INamedTypeSymbol { TypeKind: TypeKind.Struct } => SymbolEntryKind.Struct,
+            INamedTypeSymbol { TypeKind: TypeKind.Delegate } => SymbolEntryKind.Delegate,
+            IMethodSymbol { MethodKind: MethodKind.Constructor or MethodKind.StaticConstructor }
+                => SymbolEntryKind.Constructor,
+            IMethodSymbol => SymbolEntryKind.Method,
+            IPropertySymbol => SymbolEntryKind.Property,
+            IFieldSymbol => SymbolEntryKind.Field,
+            IEventSymbol => SymbolEntryKind.Event,
+            INamespaceSymbol => SymbolEntryKind.Namespace,
+            _ => SymbolEntryKind.Unknown
         };
     }
 }
